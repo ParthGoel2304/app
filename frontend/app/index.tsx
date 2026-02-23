@@ -192,10 +192,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 320,
     elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
   buttonDisabled: {
     backgroundColor: '#9aa0a6',
