@@ -164,6 +164,8 @@ export default function FilterScreen() {
     const r = parseFloat(calcRate || basicRate);
     return !isNaN(w) && !isNaN(r) ? (w * r).toFixed(0) : null;
   })();
+
+  useFocusEffect(
     React.useCallback(() => {
       const store = getExcelStore();
       setDataAvailable(store !== null && store.data.length > 1);
