@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Dimensions, Modal, ActivityIndicator, Alert
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,12 +17,7 @@ interface RackData {
   sizeDiff: number;
 }
 
-interface RackDetailModalProps {
-  rack: RackData | null;
-  onClose: () => void;
-}
-
-// JGT Visual Layout Structure (matching image 3)
+// JGT Visual Layout Structure
 const JGT_LAYOUT = {
   title: 'JGT Visual Inventory Layout',
   sections: [
@@ -58,7 +53,7 @@ const JGT_LAYOUT = {
   ]
 };
 
-// JGI Visual Layout Structure (matching image 4)
+// JGI Visual Layout Structure
 const JGI_LAYOUT = {
   title: 'JGI Visual Inventory Layout',
   sections: [
@@ -82,27 +77,73 @@ const JGI_LAYOUT = {
 };
 
 export default function LayoutScreen() {
+  const router = useRouter();
   const [layoutType, setLayoutType] = useState<'jgt' | 'jgi'>('jgt');
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [rackDataMap, setRackDataMap] = useState<Map<string, RackData>>(new Map());
   const [selectedRack, setSelectedRack] = useState<RackData | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [layoutFileId, setLayoutFileId] = useState<string | null>(null);
+  const [layoutFileName, setLayoutFileName] = useState<string>('');
 
   useFocusEffect(
     useCallback(() => {
-      loadSession();
+      checkAndLoadSession();
     }, [])
   );
 
-  const loadSession = async () => {
-    const sid = await AsyncStorage.getItem('sessionId');
-    setSessionId(sid);
+  const checkAndLoadSession = async () => {
+    setCheckingSession(true);
+    try {
+      const sid = await AsyncStorage.getItem('sessionId');
+      setSessionId(sid);
+      
+      if (sid) {
+        // Check if session is valid by checking drive status
+        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const statusRes = await fetch(`${backendUrl}/api/drive/status?session_id=${sid}`);
+        const status = await statusRes.json();
+        
+        if (status.connected) {
+          // Session is valid, try to find layout file
+          await findLayoutFile(sid);
+        } else {
+          setSessionId(null);
+        }
+      }
+    } catch (err) {
+      console.log('Session check error:', err);
+    } finally {
+      setCheckingSession(false);
+    }
+  };
+
+  const findLayoutFile = async (sid: string) => {
+    try {
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const filesRes = await fetch(`${backendUrl}/api/drive/files?session_id=${sid}`);
+      const files = await filesRes.json();
+      
+      const layoutFile = files.find((f: any) => 
+        f.name.toLowerCase().includes('inventory') && 
+        f.name.toLowerCase().includes('system') &&
+        f.name.toLowerCase().includes('final')
+      );
+
+      if (layoutFile) {
+        setLayoutFileId(layoutFile.id);
+        setLayoutFileName(layoutFile.name);
+      }
+    } catch (err) {
+      console.log('Find layout file error:', err);
+    }
   };
 
   const loadLayoutData = async (type: 'jgt' | 'jgi') => {
     if (!sessionId) {
-      Alert.alert('Error', 'Please login first');
+      Alert.alert('Error', 'No session available');
       return;
     }
 
@@ -113,27 +154,32 @@ export default function LayoutScreen() {
     try {
       const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
       
-      // First, find the MS_Inventory_System_FINAL file
-      const filesRes = await fetch(`${backendUrl}/api/drive/files?session_id=${sessionId}`);
-      const files = await filesRes.json();
-      
-      const layoutFile = files.find((f: any) => 
-        f.name.toLowerCase().includes('inventory') && 
-        f.name.toLowerCase().includes('system') &&
-        f.name.toLowerCase().includes('final')
-      );
+      let fileId = layoutFileId;
+      if (!fileId) {
+        // Try to find the file again
+        const filesRes = await fetch(`${backendUrl}/api/drive/files?session_id=${sessionId}`);
+        const files = await filesRes.json();
+        
+        const layoutFile = files.find((f: any) => 
+          f.name.toLowerCase().includes('inventory') && 
+          f.name.toLowerCase().includes('system') &&
+          f.name.toLowerCase().includes('final')
+        );
 
-      if (!layoutFile) {
-        Alert.alert('File Not Found', 'MS_Inventory_System_FINAL not found in Google Drive');
-        setLoading(false);
-        return;
+        if (!layoutFile) {
+          Alert.alert('File Not Found', 'MS_Inventory_System_FINAL not found in Google Drive');
+          setLoading(false);
+          return;
+        }
+        fileId = layoutFile.id;
+        setLayoutFileId(layoutFile.id);
+        setLayoutFileName(layoutFile.name);
       }
 
-      // Load the correct inventory chart sheet
       const sheetName = type === 'jgt' ? 'Inventory_Chart_JGT' : 'Inventory_Chart_JGI';
       
       const dataRes = await fetch(
-        `${backendUrl}/api/excel/read?session_id=${sessionId}&file_id=${layoutFile.id}&sheet_name=${sheetName}&cell_range=A1:K200`
+        `${backendUrl}/api/excel/read?session_id=${sessionId}&file_id=${fileId}&sheet_name=${sheetName}&cell_range=A1:K200`
       );
 
       if (!dataRes.ok) {
@@ -179,20 +225,18 @@ export default function LayoutScreen() {
   };
 
   const getRackInfo = (rackCode: string): RackData | null => {
-    // Clean the rack code for lookup
     const cleanCode = rackCode.replace(/\(.*\)/g, '').trim().toUpperCase();
     return rackDataMap.get(cleanCode) || null;
   };
 
   const getStockColor = (stock: number): string => {
-    if (stock === 0) return '#FFCDD2'; // Red - empty
-    if (stock < 1000) return '#FFE0B2'; // Orange - low
-    return '#C8E6C9'; // Green - good
+    if (stock === 0) return '#FFCDD2';
+    if (stock < 1000) return '#FFE0B2';
+    return '#C8E6C9';
   };
 
   const isRackCode = (text: string): boolean => {
     if (!text || text === 'Gap' || text === 'Others') return false;
-    // Match patterns like R1.1, LA1.2, O10.2, etc.
     return /^[A-Z]+\d+\.?\d*/.test(text.replace(/\(.*\)/g, '').trim());
   };
 
@@ -206,7 +250,6 @@ export default function LayoutScreen() {
     if (rackInfo) {
       setSelectedRack(rackInfo);
     } else {
-      // Show empty rack info
       setSelectedRack({
         rackCode,
         size: 'No data',
@@ -214,6 +257,10 @@ export default function LayoutScreen() {
         sizeDiff: 0,
       });
     }
+  };
+
+  const navigateToFiles = () => {
+    router.push('/files' as any);
   };
 
   const currentLayout = layoutType === 'jgt' ? JGT_LAYOUT : JGI_LAYOUT;
@@ -260,7 +307,6 @@ export default function LayoutScreen() {
       );
     }
 
-    // Unknown text
     return (
       <View key={colIndex} style={styles.otherCell}>
         <Text style={styles.otherText}>{cellText}</Text>
@@ -268,16 +314,43 @@ export default function LayoutScreen() {
     );
   };
 
+  // Loading state
+  if (checkingSession) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Warehouse Layout</Text>
+        </View>
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#4285F4" />
+          <Text style={styles.loadingText}>Checking session...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Not logged in - show nice file selector card
   if (!sessionId) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Warehouse Layout</Text>
         </View>
-        <View style={styles.emptyBox}>
-          <Ionicons name="log-in-outline" size={64} color="#d0d0d0" />
-          <Text style={styles.emptyTitle}>Login Required</Text>
-          <Text style={styles.emptySub}>Connect to Google Drive first</Text>
+        <View style={styles.fileSelectContainer}>
+          <TouchableOpacity 
+            style={styles.fileSelectCard}
+            onPress={() => router.push('/' as any)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.driveIconWrap}>
+              <Ionicons name="folder" size={48} color="#4285F4" />
+            </View>
+            <Text style={styles.fileSelectTitle}>Select File</Text>
+            <Text style={styles.fileSelectSub}>From Google Drive</Text>
+          </TouchableOpacity>
+          <Text style={styles.hintText}>
+            Connect to Google Drive to view warehouse layout
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -287,6 +360,9 @@ export default function LayoutScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Warehouse Layout</Text>
+        <TouchableOpacity style={styles.driveBtn} onPress={navigateToFiles}>
+          <Ionicons name="folder-outline" size={22} color="#4285F4" />
+        </TouchableOpacity>
       </View>
 
       {/* Layout Type Tabs */}
@@ -313,11 +389,11 @@ export default function LayoutScreen() {
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: '#C8E6C9' }]} />
-          <Text style={styles.legendText}>Stock &gt; 1000kg</Text>
+          <Text style={styles.legendText}>&gt;1000kg</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: '#FFE0B2' }]} />
-          <Text style={styles.legendText}>Low Stock</Text>
+          <Text style={styles.legendText}>Low</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: '#FFCDD2' }]} />
@@ -331,10 +407,20 @@ export default function LayoutScreen() {
           <Text style={styles.loadingText}>Loading {layoutType.toUpperCase()} layout...</Text>
         </View>
       ) : !dataLoaded ? (
-        <View style={styles.emptyBox}>
-          <Ionicons name="grid-outline" size={64} color="#d0d0d0" />
-          <Text style={styles.emptyTitle}>Select Layout</Text>
-          <Text style={styles.emptySub}>Tap JGT or JGI to load warehouse layout</Text>
+        <View style={styles.selectLayoutContainer}>
+          <TouchableOpacity 
+            style={styles.fileSelectCard}
+            onPress={() => loadLayoutData('jgt')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.driveIconWrap}>
+              <Ionicons name="grid" size={48} color="#4285F4" />
+            </View>
+            <Text style={styles.fileSelectTitle}>Load Layout</Text>
+            <Text style={styles.fileSelectSub}>
+              {layoutFileName ? `From: ${layoutFileName}` : 'Tap JGT or JGI tab to start'}
+            </Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView 
@@ -346,12 +432,10 @@ export default function LayoutScreen() {
             showsVerticalScrollIndicator={true}
             contentContainerStyle={styles.verticalScroll}
           >
-            {/* Layout Title */}
             <View style={styles.layoutTitleBar}>
               <Text style={styles.layoutTitle}>{currentLayout.title}</Text>
             </View>
 
-            {/* Sections */}
             {currentLayout.sections.map((section, sIdx) => (
               <View key={sIdx} style={styles.section}>
                 {section.name !== 'Zone Labels' && (
@@ -457,6 +541,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460',
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  driveBtn: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center',
+  },
   tabBar: {
     flexDirection: 'row', backgroundColor: '#16213e', paddingHorizontal: 16, paddingVertical: 8,
     borderBottomWidth: 1, borderBottomColor: '#0f3460',
@@ -478,9 +566,24 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 10, color: '#9aa0a6' },
   loadingBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { fontSize: 14, color: '#9aa0a6', marginTop: 12 },
-  emptyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyTitle: { fontSize: 20, fontWeight: '600', color: '#fff', marginTop: 16 },
-  emptySub: { fontSize: 14, color: '#9aa0a6', textAlign: 'center', marginTop: 8 },
+  // File selector card
+  fileSelectContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  selectLayoutContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  fileSelectCard: {
+    backgroundColor: '#fff', borderRadius: 24, padding: 32,
+    alignItems: 'center', width: 200,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+  },
+  driveIconWrap: {
+    width: 80, height: 80, borderRadius: 20,
+    backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+  },
+  fileSelectTitle: { fontSize: 18, fontWeight: '700', color: '#202124', marginBottom: 4 },
+  fileSelectSub: { fontSize: 13, color: '#5f6368', textAlign: 'center' },
+  hintText: { fontSize: 12, color: '#9aa0a6', textAlign: 'center', marginTop: 24 },
+  // Layout grid
   horizontalScroll: { paddingHorizontal: 12 },
   verticalScroll: { paddingVertical: 12 },
   layoutTitleBar: {
@@ -511,8 +614,6 @@ const styles = StyleSheet.create({
     width: CELL_WIDTH, height: CELL_HEIGHT, marginRight: 4,
     borderRadius: 6, justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
   },
   rackCode: { fontSize: 11, fontWeight: '700', color: '#202124' },
   rackSize: { fontSize: 8, color: '#5f6368', marginTop: 2, textAlign: 'center' },
