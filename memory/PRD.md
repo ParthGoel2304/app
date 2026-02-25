@@ -210,10 +210,14 @@ Quick Actions
 
 ## Session Log
 
-### 2026-02-25 (Current Session - Continued)
-- **FIX 1: Layout Column Mapping** - Layout already reads from correct columns (B=Rack, E=Size, I=Stock, J=Diff). Improved rack code matching to be more lenient (handles trailing dots, parentheses, case differences).
-- **FIX 2: Google Drive Cache** - Added `_t=${Date.now()}` timestamp and `Cache-Control: no-cache` header to force fresh data on files.tsx, sheets.tsx, and data.tsx.
-- **FIX 3: Default Tab = Home** - Added `initialRouteName="home"` to Tab navigator in `_layout.tsx`.
+### 2026-02-25 (Current Session - Final Fixes)
+- **FIX 1-3: Basic Fixes** - Layout column mapping, Drive cache busting, Default tab = Home
+- **FIX 4: Multi-Size Rack Support** - Racks can have multiple sizes (duplicates). Dialog shows:
+  - Single entry: detailed view (Size, Diff, Stock)
+  - Multiple entries: scrollable list with total stock
+- **FIX 5: "Others" and "S1" as Valid Racks** - Treated as valid rack IDs, not filtered as labels
+- **FIX 6: Clean Grid UI** - Grid shows only rack ID + badge for multiple entries
+- **FIX 7: Backend Temp File Filter** - Filters out `~$filename.xlsx` temp files from Drive list
 
 - **COMPLETED: Sheet Library System**
   - Rewrote `store.ts` with SheetProfile type and CRUD operations
