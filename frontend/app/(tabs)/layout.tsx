@@ -258,18 +258,18 @@ export default function LayoutScreen() {
     }
   };
 
-  const getRackInfo = (rackCode: string): RackData | null => {
+  const getRackInfo = (rackCode: string): RackEntry[] => {
     // Clean the rack code: remove parentheses content, trim, uppercase
     const cleanCode = rackCode.replace(/\(.*\)/g, '').trim().toUpperCase();
     
     // Direct match first
     let result = rackDataMap.get(cleanCode);
-    if (result) return result;
+    if (result && result.length > 0) return result;
     
     // Try without trailing dots/spaces
     const cleanCode2 = cleanCode.replace(/\.$/, '');
     result = rackDataMap.get(cleanCode2);
-    if (result) return result;
+    if (result && result.length > 0) return result;
     
     // Try fuzzy match - iterate and find similar
     for (const [key, value] of rackDataMap.entries()) {
@@ -279,7 +279,11 @@ export default function LayoutScreen() {
       }
     }
     
-    return null;
+    return [];
+  };
+
+  const getTotalStock = (entries: RackEntry[]): number => {
+    return entries.reduce((sum, e) => sum + e.stock, 0);
   };
 
   const getStockColor = (stock: number): string => {
