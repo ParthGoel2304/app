@@ -554,47 +554,81 @@ export default function LayoutScreen() {
         </View>
       </Modal>
 
-      {/* Rack Detail Modal */}
-      <Modal visible={selectedRack !== null} transparent animationType="fade" onRequestClose={() => setSelectedRack(null)}>
-        <TouchableOpacity style={styles.rackModalOverlay} activeOpacity={1} onPress={() => setSelectedRack(null)}>
+      {/* Rack Detail Modal - supports multiple entries */}
+      <Modal visible={selectedRackCode !== null} transparent animationType="fade" onRequestClose={() => setSelectedRackCode(null)}>
+        <TouchableOpacity style={styles.rackModalOverlay} activeOpacity={1} onPress={() => setSelectedRackCode(null)}>
           <View style={styles.rackModal}>
-            {selectedRack && (
+            {selectedRackCode && (
               <>
                 <View style={styles.rackModalHeader}>
                   <View style={styles.rackBadge}>
                     <Ionicons name="location" size={16} color="#fff" />
-                    <Text style={styles.rackBadgeText}>{selectedRack.rackCode}</Text>
+                    <Text style={styles.rackBadgeText}>{selectedRackCode}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setSelectedRack(null)}>
+                  <TouchableOpacity onPress={() => setSelectedRackCode(null)}>
                     <Ionicons name="close" size={24} color="#5f6368" />
                   </TouchableOpacity>
                 </View>
-                <View style={styles.rackContent}>
-                  <View style={styles.rackRow}>
-                    <Text style={styles.rackLabel}>Size</Text>
-                    <Text style={styles.rackValue}>{selectedRack.size || 'N/A'}</Text>
+                
+                {selectedRackEntries.length === 0 ? (
+                  <View style={styles.emptyRackContent}>
+                    <Ionicons name="cube-outline" size={40} color="#9aa0a6" />
+                    <Text style={styles.emptyRackText}>Empty Rack</Text>
+                    <Text style={styles.emptyRackSub}>No items stored</Text>
                   </View>
-                  <View style={styles.rackRow}>
-                    <Text style={styles.rackLabel}>Size Diff</Text>
-                    <Text style={[styles.rackValue, { color: selectedRack.sizeDiff >= 0 ? '#34A853' : '#EA4335' }]}>
-                      {selectedRack.sizeDiff >= 0 ? '+' : ''}{selectedRack.sizeDiff}
-                    </Text>
+                ) : selectedRackEntries.length === 1 ? (
+                  // Single entry - show detailed view
+                  <View style={styles.rackContent}>
+                    <View style={styles.rackRow}>
+                      <Text style={styles.rackLabel}>Size</Text>
+                      <Text style={styles.rackValue}>{selectedRackEntries[0].size || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.rackRow}>
+                      <Text style={styles.rackLabel}>Size Diff</Text>
+                      <Text style={[styles.rackValue, { color: selectedRackEntries[0].sizeDiff >= 0 ? '#34A853' : '#EA4335' }]}>
+                        {selectedRackEntries[0].sizeDiff >= 0 ? '+' : ''}{selectedRackEntries[0].sizeDiff}
+                      </Text>
+                    </View>
+                    <View style={styles.rackRow}>
+                      <Text style={styles.rackLabel}>Stock</Text>
+                      <Text style={[styles.rackValue, styles.stockVal, { color: selectedRackEntries[0].stock > 0 ? '#34A853' : '#EA4335' }]}>
+                        {selectedRackEntries[0].stock.toLocaleString('en-IN')} kg
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.rackRow}>
-                    <Text style={styles.rackLabel}>Current Stock</Text>
-                    <Text style={[styles.rackValue, styles.stockVal, { color: selectedRack.stock > 0 ? '#34A853' : '#EA4335' }]}>
-                      {selectedRack.stock.toLocaleString('en-IN')} kg
-                    </Text>
-                  </View>
-                </View>
-                <View style={[styles.stockIndicator, { backgroundColor: getStockColor(selectedRack.stock) }]}>
+                ) : (
+                  // Multiple entries - show list
+                  <ScrollView style={styles.multiEntryList} showsVerticalScrollIndicator>
+                    {selectedRackEntries.map((entry, idx) => (
+                      <View key={idx} style={styles.entryItem}>
+                        <View style={styles.entryHeader}>
+                          <Text style={styles.entrySize}>{entry.size || 'Unknown Size'}</Text>
+                          <Text style={[styles.entryStock, { color: entry.stock > 0 ? '#34A853' : '#EA4335' }]}>
+                            {entry.stock.toLocaleString('en-IN')} kg
+                          </Text>
+                        </View>
+                        <Text style={[styles.entryDiff, { color: entry.sizeDiff >= 0 ? '#34A853' : '#EA4335' }]}>
+                          Diff: {entry.sizeDiff >= 0 ? '+' : ''}{entry.sizeDiff}
+                        </Text>
+                      </View>
+                    ))}
+                    <View style={styles.totalRow}>
+                      <Text style={styles.totalLabel}>Total Stock</Text>
+                      <Text style={styles.totalValue}>
+                        {getTotalStock(selectedRackEntries).toLocaleString('en-IN')} kg
+                      </Text>
+                    </View>
+                  </ScrollView>
+                )}
+                
+                <View style={[styles.stockIndicator, { backgroundColor: getStockColor(getTotalStock(selectedRackEntries)) }]}>
                   <Ionicons 
-                    name={selectedRack.stock > 1000 ? 'checkmark-circle' : selectedRack.stock > 0 ? 'alert-circle' : 'close-circle'} 
+                    name={getTotalStock(selectedRackEntries) > 1000 ? 'checkmark-circle' : getTotalStock(selectedRackEntries) > 0 ? 'alert-circle' : 'close-circle'} 
                     size={20} 
-                    color={selectedRack.stock > 1000 ? '#34A853' : selectedRack.stock > 0 ? '#FA7B17' : '#EA4335'} 
+                    color={getTotalStock(selectedRackEntries) > 1000 ? '#34A853' : getTotalStock(selectedRackEntries) > 0 ? '#FA7B17' : '#EA4335'} 
                   />
                   <Text style={styles.stockIndicatorText}>
-                    {selectedRack.stock > 1000 ? 'In Stock' : selectedRack.stock > 0 ? 'Low Stock' : 'Empty'}
+                    {getTotalStock(selectedRackEntries) > 1000 ? 'In Stock' : getTotalStock(selectedRackEntries) > 0 ? 'Low Stock' : 'Empty'}
                   </Text>
                 </View>
               </>
