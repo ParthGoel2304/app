@@ -93,7 +93,7 @@ export default function LoginScreen() {
 
         <Text style={styles.title}>Smart Excel Reader</Text>
         <Text style={styles.subtitle}>
-          Connect Google Drive to read your inventory Excel file
+          Connect Google Drive to read your inventory Excel files instantly
         </Text>
 
         <View style={styles.features}>
