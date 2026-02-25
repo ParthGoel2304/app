@@ -1,12 +1,16 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Dimensions, Modal, ActivityIndicator, Alert, FlatList
+  Dimensions, Modal, ActivityIndicator, Alert
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  getFileRegistry, getLayoutFiles, ExcelFile, 
+  getLayoutStore, setLayoutStore 
+} from '../../utils/store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -16,16 +20,6 @@ interface RackData {
   size: string;
   stock: number;
   sizeDiff: number;
-}
-
-interface DriveFile {
-  id: string;
-  name: string;
-}
-
-interface SheetInfo {
-  name: string;
-  index: number;
 }
 
 // JGT Visual Layout Structure
@@ -70,22 +64,13 @@ const JGI_LAYOUT = {
 };
 
 export default function LayoutScreen() {
-  const router = useRouter();
-  
-  // States for independent file picker
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [checking, setChecking] = useState(true);
-  
-  // File picker modals
+  // File registry state
+  const [layoutFiles, setLayoutFiles] = useState<ExcelFile[]>([]);
+  const [allFiles, setAllFiles] = useState<ExcelFile[]>([]);
   const [showFilePicker, setShowFilePicker] = useState(false);
-  const [showSheetPicker, setShowSheetPicker] = useState(false);
-  const [files, setFiles] = useState<DriveFile[]>([]);
-  const [sheets, setSheets] = useState<SheetInfo[]>([]);
-  const [loadingFiles, setLoadingFiles] = useState(false);
-  const [loadingSheets, setLoadingSheets] = useState(false);
   
-  // Selected file & sheet
-  const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null);
+  // Selected file & layout
+  const [selectedFile, setSelectedFile] = useState<ExcelFile | null>(null);
   const [layoutType, setLayoutType] = useState<'jgt' | 'jgi' | null>(null);
   
   // Layout data
@@ -93,143 +78,57 @@ export default function LayoutScreen() {
   const [rackDataMap, setRackDataMap] = useState<Map<string, RackData>>(new Map());
   const [selectedRack, setSelectedRack] = useState<RackData | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  
+  // Session for API calls
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      checkSession();
+      loadFileRegistry();
     }, [])
   );
 
-  // Check if session exists and try to load last file
-  const checkSession = async () => {
-    setChecking(true);
-    try {
-      const sid = await AsyncStorage.getItem('sessionId');
-      setSessionId(sid);
-      
-      if (sid) {
-        // Check if session is valid
-        const res = await fetch(`${BACKEND_URL}/api/drive/status?session_id=${sid}`);
-        const status = await res.json();
-        
-        if (!status.connected) {
-          setSessionId(null);
-        } else {
-          // Try to load last layout file
-          const lastFileId = await AsyncStorage.getItem('layout_last_file_id');
-          const lastFileName = await AsyncStorage.getItem('layout_last_file_name');
-          const lastLayout = await AsyncStorage.getItem('layout_last_type');
-          
-          if (lastFileId && lastFileName) {
-            setSelectedFile({ id: lastFileId, name: lastFileName });
-            if (lastLayout === 'jgt' || lastLayout === 'jgi') {
-              setLayoutType(lastLayout);
-              // Auto-load
-              loadLayoutData(sid, lastFileId, lastLayout);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.log('Session check error:', err);
-    } finally {
-      setChecking(false);
+  const loadFileRegistry = async () => {
+    // Get session ID
+    const sid = await AsyncStorage.getItem('sessionId');
+    setSessionId(sid);
+    
+    // Get files from registry
+    const registry = getFileRegistry();
+    setAllFiles(registry);
+    
+    // Filter for layout files
+    const layouts = getLayoutFiles();
+    setLayoutFiles(layouts);
+    
+    // If only one layout file, auto-select it
+    if (layouts.length === 1) {
+      setSelectedFile(layouts[0]);
     }
   };
 
-  // Open file picker - MODAL ONLY, NO NAVIGATION
-  const openFilePicker = async () => {
-    if (!sessionId) {
-      // No session - show alert, don't redirect
-      Alert.alert(
-        'Connect to Google Drive',
-        'Please connect to Google Drive from the Home tab first.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
-    // Open modal directly - no navigation
-    setShowFilePicker(true);
-    setLoadingFiles(true);
-    
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/drive/files?session_id=${sessionId}`);
-      const allFiles = await res.json();
-      
-      // Filter for Excel files only
-      const excelFiles = allFiles.filter((f: any) => 
-        f.name.endsWith('.xlsx') || f.name.endsWith('.xls') || 
-        f.mimeType?.includes('spreadsheet')
-      );
-      setFiles(excelFiles);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to load files from Drive');
-      setShowFilePicker(false);
-    } finally {
-      setLoadingFiles(false);
-    }
-  };
-
-  // Select file and show sheet picker
-  const selectFile = async (file: DriveFile) => {
+  const selectFile = (file: ExcelFile) => {
     setSelectedFile(file);
     setShowFilePicker(false);
-    setShowSheetPicker(true);
-    setLoadingSheets(true);
-    
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/drive/file/${file.id}/sheets?session_id=${sessionId}`);
-      const allSheets = await res.json();
-      
-      // Filter for inventory chart sheets only
-      const inventorySheets = allSheets.filter((s: any) => 
-        s.name.includes('Inventory_Chart') || 
-        s.name.includes('JGT') || 
-        s.name.includes('JGI')
-      );
-      
-      setSheets(inventorySheets.length > 0 ? inventorySheets : allSheets);
-      
-      // Save last file
-      await AsyncStorage.setItem('layout_last_file_id', file.id);
-      await AsyncStorage.setItem('layout_last_file_name', file.name);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to load sheets');
-    } finally {
-      setLoadingSheets(false);
-    }
-  };
-
-  // Select sheet and load layout
-  const selectSheet = async (sheet: SheetInfo) => {
-    setShowSheetPicker(false);
-    
-    // Determine layout type
-    let type: 'jgt' | 'jgi' = 'jgt';
-    if (sheet.name.toLowerCase().includes('jgi')) {
-      type = 'jgi';
-    }
-    
-    setLayoutType(type);
-    await AsyncStorage.setItem('layout_last_type', type);
-    
-    if (selectedFile && sessionId) {
-      loadLayoutData(sessionId, selectedFile.id, type);
-    }
-  };
-
-  // Load layout data
-  const loadLayoutData = async (sid: string, fileId: string, type: 'jgt' | 'jgi') => {
-    setLoading(true);
-    setRackDataMap(new Map());
     setDataLoaded(false);
+    setLayoutType(null);
+  };
+
+  const loadLayoutData = async (type: 'jgt' | 'jgi') => {
+    if (!selectedFile || !sessionId) {
+      Alert.alert('Error', 'No file selected or session expired');
+      return;
+    }
+
+    setLoading(true);
+    setLayoutType(type);
+    setRackDataMap(new Map());
 
     try {
       const sheetName = type === 'jgt' ? 'Inventory_Chart_JGT' : 'Inventory_Chart_JGI';
       
       const res = await fetch(
-        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${fileId}&sheet_name=${sheetName}&cell_range=A1:K200`
+        `${BACKEND_URL}/api/excel/read?session_id=${sessionId}&file_id=${selectedFile.fileId}&sheet_name=${sheetName}&cell_range=A1:K200`
       );
 
       if (!res.ok) {
@@ -267,18 +166,20 @@ export default function LayoutScreen() {
 
       setRackDataMap(newMap);
       setDataLoaded(true);
+      
+      // Save to layout store
+      setLayoutStore({
+        data: rows,
+        fileName: selectedFile.fileName,
+        fileId: selectedFile.fileId,
+        sheetName,
+        cellRange: 'A1:K200',
+        loadedAt: Date.now(),
+      });
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to load layout');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const switchLayout = (type: 'jgt' | 'jgi') => {
-    if (selectedFile && sessionId) {
-      setLayoutType(type);
-      AsyncStorage.setItem('layout_last_type', type);
-      loadLayoutData(sessionId, selectedFile.id, type);
     }
   };
 
@@ -345,14 +246,45 @@ export default function LayoutScreen() {
     return <View key={colIndex} style={styles.otherCell}><Text style={styles.otherText}>{cellText}</Text></View>;
   };
 
-  // Checking state
-  if (checking) {
+  // No files loaded yet
+  if (allFiles.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}><Text style={styles.headerTitle}>Warehouse Layout</Text></View>
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color="#4285F4" />
-          <Text style={styles.centerText}>Checking session...</Text>
+          <Ionicons name="folder-open-outline" size={64} color="#5f6368" />
+          <Text style={styles.centerTitle}>No Files Loaded</Text>
+          <Text style={styles.centerSub}>
+            Add Excel files from the Home tab first.{'\n'}
+            Files with layout sheets will appear here.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // No layout files (files loaded but none have layout sheets)
+  if (layoutFiles.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}><Text style={styles.headerTitle}>Warehouse Layout</Text></View>
+        <View style={styles.centerBox}>
+          <Ionicons name="grid-outline" size={64} color="#5f6368" />
+          <Text style={styles.centerTitle}>No Layout Files</Text>
+          <Text style={styles.centerSub}>
+            Loaded files don't have layout sheets.{'\n'}
+            Add MS_Inventory_System_FINAL from Home tab.
+          </Text>
+          <View style={styles.fileListSmall}>
+            <Text style={styles.fileListTitle}>Loaded Files:</Text>
+            {allFiles.map((f, i) => (
+              <View key={i} style={styles.fileItemSmall}>
+                <Ionicons name="document" size={16} color="#FA7B17" />
+                <Text style={styles.fileItemTextSmall}>{f.fileName}</Text>
+                <Text style={styles.fileTypeBadge}>{f.fileType}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -362,37 +294,62 @@ export default function LayoutScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Warehouse Layout</Text>
-        <TouchableOpacity style={styles.driveBtn} onPress={openFilePicker}>
-          <Ionicons name="folder-outline" size={22} color="#4285F4" />
-        </TouchableOpacity>
+        {layoutFiles.length > 1 && (
+          <TouchableOpacity style={styles.switchBtn} onPress={() => setShowFilePicker(true)}>
+            <Ionicons name="swap-horizontal" size={20} color="#4285F4" />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* No file selected - show file selector card */}
-      {!selectedFile && (
-        <View style={styles.centerBox}>
-          <TouchableOpacity style={styles.fileCard} onPress={openFilePicker} activeOpacity={0.8}>
-            <View style={styles.fileIconWrap}>
-              <Ionicons name="folder" size={48} color="#4285F4" />
+      {/* Selected File Info */}
+      {selectedFile && (
+        <View style={styles.fileBar}>
+          <Ionicons name="document" size={18} color="#34A853" />
+          <Text style={styles.fileBarText} numberOfLines={1}>{selectedFile.fileName}</Text>
+          {selectedFile.hasLayoutSheets && (
+            <View style={styles.layoutBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#34A853" />
+              <Text style={styles.layoutBadgeText}>Layout</Text>
             </View>
-            <Text style={styles.fileCardTitle}>Select File</Text>
-            <Text style={styles.fileCardSub}>From Google Drive</Text>
-          </TouchableOpacity>
-          <Text style={styles.hintText}>
-            Select MS_Inventory_System_FINAL to view warehouse layout
-          </Text>
+          )}
+        </View>
+      )}
+
+      {/* No file selected - show file list */}
+      {!selectedFile && (
+        <View style={styles.fileListContainer}>
+          <Text style={styles.selectTitle}>Select Layout File:</Text>
+          {layoutFiles.map((file, idx) => (
+            <TouchableOpacity
+              key={idx}
+              style={styles.fileOption}
+              onPress={() => selectFile(file)}
+            >
+              <Ionicons name="document" size={24} color="#34A853" />
+              <View style={styles.fileOptionInfo}>
+                <Text style={styles.fileOptionName}>{file.fileName}</Text>
+                <Text style={styles.fileOptionSheets}>
+                  {file.sheetNames.filter(s => s.includes('Inventory_Chart')).join(', ')}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9aa0a6" />
+            </TouchableOpacity>
+          ))}
         </View>
       )}
 
       {/* File selected but no layout loaded */}
       {selectedFile && !dataLoaded && !loading && (
         <View style={styles.centerBox}>
-          <Text style={styles.selectedFileName}>{selectedFile.name}</Text>
-          <View style={styles.layoutButtons}>
-            <TouchableOpacity style={styles.layoutBtn} onPress={() => switchLayout('jgt')}>
-              <Text style={styles.layoutBtnText}>Load JGT Layout</Text>
+          <Text style={styles.selectLayoutTitle}>Select Layout Type</Text>
+          <View style={styles.layoutBtns}>
+            <TouchableOpacity style={styles.layoutTypeBtn} onPress={() => loadLayoutData('jgt')}>
+              <Ionicons name="grid" size={32} color="#4285F4" />
+              <Text style={styles.layoutTypeBtnText}>JGT Layout</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.layoutBtn} onPress={() => switchLayout('jgi')}>
-              <Text style={styles.layoutBtnText}>Load JGI Layout</Text>
+            <TouchableOpacity style={styles.layoutTypeBtn} onPress={() => loadLayoutData('jgi')}>
+              <Ionicons name="grid" size={32} color="#9C27B0" />
+              <Text style={styles.layoutTypeBtnText}>JGI Layout</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -402,7 +359,7 @@ export default function LayoutScreen() {
       {loading && (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color="#4285F4" />
-          <Text style={styles.centerText}>Loading layout...</Text>
+          <Text style={styles.centerSub}>Loading {layoutType?.toUpperCase()} layout...</Text>
         </View>
       )}
 
@@ -413,13 +370,13 @@ export default function LayoutScreen() {
           <View style={styles.tabBar}>
             <TouchableOpacity
               style={[styles.tab, layoutType === 'jgt' && styles.tabActive]}
-              onPress={() => switchLayout('jgt')}
+              onPress={() => loadLayoutData('jgt')}
             >
               <Text style={[styles.tabText, layoutType === 'jgt' && styles.tabTextActive]}>JGT</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, layoutType === 'jgi' && styles.tabActive]}
-              onPress={() => switchLayout('jgi')}
+              onPress={() => loadLayoutData('jgi')}
             >
               <Text style={[styles.tabText, layoutType === 'jgi' && styles.tabTextActive]}>JGI</Text>
             </TouchableOpacity>
@@ -468,55 +425,24 @@ export default function LayoutScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.pickerModal}>
             <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Select Excel File</Text>
+              <Text style={styles.pickerTitle}>Select Layout File</Text>
               <TouchableOpacity onPress={() => setShowFilePicker(false)}>
                 <Ionicons name="close" size={24} color="#5f6368" />
               </TouchableOpacity>
             </View>
-            {loadingFiles ? (
-              <View style={styles.pickerLoading}><ActivityIndicator size="large" color="#4285F4" /></View>
-            ) : (
-              <FlatList
-                data={files}
-                keyExtractor={item => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.fileItem} onPress={() => selectFile(item)}>
-                    <Ionicons name="document" size={24} color="#34A853" />
-                    <Text style={styles.fileItemText} numberOfLines={1}>{item.name}</Text>
-                  </TouchableOpacity>
+            {layoutFiles.map((file, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.filePickerItem, selectedFile?.fileId === file.fileId && styles.filePickerItemActive]}
+                onPress={() => selectFile(file)}
+              >
+                <Ionicons name="document" size={24} color="#34A853" />
+                <Text style={styles.filePickerText}>{file.fileName}</Text>
+                {selectedFile?.fileId === file.fileId && (
+                  <Ionicons name="checkmark-circle" size={20} color="#4285F4" />
                 )}
-                ListEmptyComponent={<Text style={styles.emptyText}>No Excel files found</Text>}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Sheet Picker Modal */}
-      <Modal visible={showSheetPicker} transparent animationType="slide" onRequestClose={() => setShowSheetPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.pickerModal}>
-            <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Select Sheet</Text>
-              <TouchableOpacity onPress={() => setShowSheetPicker(false)}>
-                <Ionicons name="close" size={24} color="#5f6368" />
               </TouchableOpacity>
-            </View>
-            {loadingSheets ? (
-              <View style={styles.pickerLoading}><ActivityIndicator size="large" color="#4285F4" /></View>
-            ) : (
-              <FlatList
-                data={sheets}
-                keyExtractor={item => item.name}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.fileItem} onPress={() => selectSheet(item)}>
-                    <Ionicons name="grid" size={24} color="#4285F4" />
-                    <Text style={styles.fileItemText}>{item.name}</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={<Text style={styles.emptyText}>No sheets found</Text>}
-              />
-            )}
+            ))}
           </View>
         </View>
       </Modal>
@@ -584,20 +510,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460',
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  driveBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center' },
-  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  centerText: { fontSize: 14, color: '#9aa0a6', marginTop: 12 },
-  fileCard: {
-    backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', width: 200,
+  switchBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center' },
+  fileBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#0f3460', paddingHorizontal: 16, paddingVertical: 10,
   },
-  fileIconWrap: { width: 80, height: 80, borderRadius: 20, backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  fileCardTitle: { fontSize: 18, fontWeight: '700', color: '#202124', marginBottom: 4 },
-  fileCardSub: { fontSize: 13, color: '#5f6368' },
-  hintText: { fontSize: 12, color: '#9aa0a6', textAlign: 'center', marginTop: 24, maxWidth: 280 },
-  selectedFileName: { fontSize: 16, fontWeight: '600', color: '#fff', marginBottom: 20, textAlign: 'center' },
-  layoutButtons: { flexDirection: 'row', gap: 12 },
-  layoutBtn: { backgroundColor: '#4285F4', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12 },
-  layoutBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  fileBarText: { flex: 1, fontSize: 13, color: '#fff', fontWeight: '500' },
+  layoutBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E6F4EA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  layoutBadgeText: { fontSize: 11, color: '#34A853', fontWeight: '600' },
+  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  centerTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginTop: 16 },
+  centerSub: { fontSize: 14, color: '#9aa0a6', textAlign: 'center', marginTop: 8, lineHeight: 22 },
+  fileListSmall: { marginTop: 24, backgroundColor: '#0f3460', borderRadius: 12, padding: 16, width: '100%' },
+  fileListTitle: { fontSize: 12, color: '#9aa0a6', marginBottom: 10 },
+  fileItemSmall: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  fileItemTextSmall: { flex: 1, fontSize: 13, color: '#fff' },
+  fileTypeBadge: { fontSize: 10, color: '#FA7B17', backgroundColor: '#FEF0E6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  fileListContainer: { padding: 20 },
+  selectTitle: { fontSize: 16, fontWeight: '600', color: '#fff', marginBottom: 16 },
+  fileOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: '#0f3460', borderRadius: 14, padding: 16, marginBottom: 10,
+  },
+  fileOptionInfo: { flex: 1 },
+  fileOptionName: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  fileOptionSheets: { fontSize: 11, color: '#9aa0a6', marginTop: 4 },
+  selectLayoutTitle: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 24 },
+  layoutBtns: { flexDirection: 'row', gap: 16 },
+  layoutTypeBtn: {
+    backgroundColor: '#0f3460', borderRadius: 16, padding: 24, alignItems: 'center', width: 130,
+  },
+  layoutTypeBtnText: { fontSize: 14, fontWeight: '600', color: '#fff', marginTop: 12 },
   tabBar: { flexDirection: 'row', backgroundColor: '#16213e', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#0f3460' },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, marginHorizontal: 4, backgroundColor: '#0f3460' },
   tabActive: { backgroundColor: '#4285F4' },
@@ -627,13 +570,12 @@ const styles = StyleSheet.create({
   otherText: { fontSize: 9, color: '#5f6368', textAlign: 'center' },
   // Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  pickerModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%' },
-  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e8e8e8' },
+  pickerModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   pickerTitle: { fontSize: 18, fontWeight: '700', color: '#202124' },
-  pickerLoading: { padding: 40, alignItems: 'center' },
-  fileItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  fileItemText: { fontSize: 15, color: '#202124', flex: 1 },
-  emptyText: { padding: 40, textAlign: 'center', color: '#9aa0a6' },
+  filePickerItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 12, marginBottom: 8, backgroundColor: '#f8f9fa' },
+  filePickerItemActive: { backgroundColor: '#E8F0FE', borderWidth: 2, borderColor: '#4285F4' },
+  filePickerText: { flex: 1, fontSize: 15, color: '#202124' },
   // Rack modal
   rackModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   rackModal: { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 340 },
