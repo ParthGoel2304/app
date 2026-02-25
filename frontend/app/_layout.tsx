@@ -5,16 +5,14 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: '#f5f5f5' },
-        }}
-      >
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="files" />
         <Stack.Screen name="sheets" />
         <Stack.Screen name="data" />
+        <Stack.Screen name="filter" />
       </Stack>
     </>
   );
