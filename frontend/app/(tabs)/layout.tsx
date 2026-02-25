@@ -247,8 +247,27 @@ export default function LayoutScreen() {
   };
 
   const getRackInfo = (rackCode: string): RackData | null => {
+    // Clean the rack code: remove parentheses content, trim, uppercase
     const cleanCode = rackCode.replace(/\(.*\)/g, '').trim().toUpperCase();
-    return rackDataMap.get(cleanCode) || null;
+    
+    // Direct match first
+    let result = rackDataMap.get(cleanCode);
+    if (result) return result;
+    
+    // Try without trailing dots/spaces
+    const cleanCode2 = cleanCode.replace(/\.$/, '');
+    result = rackDataMap.get(cleanCode2);
+    if (result) return result;
+    
+    // Try fuzzy match - iterate and find similar
+    for (const [key, value] of rackDataMap.entries()) {
+      const cleanKey = key.replace(/\(.*\)/g, '').replace(/\.$/, '').trim().toUpperCase();
+      if (cleanKey === cleanCode || cleanKey === cleanCode2) {
+        return value;
+      }
+    }
+    
+    return null;
   };
 
   const getStockColor = (stock: number): string => {
