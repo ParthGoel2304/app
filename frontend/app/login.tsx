@@ -91,7 +91,7 @@ export default function LoginScreen() {
           <Ionicons name="document-text" size={56} color="#4285F4" />
         </View>
 
-        <Text style={styles.title}>Parchi Builder</Text>
+        <Text style={styles.title}>Smart Excel Reader</Text>
         <Text style={styles.subtitle}>
           Connect Google Drive to read your inventory Excel file
         </Text>
