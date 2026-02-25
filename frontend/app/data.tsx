@@ -52,6 +52,27 @@ export default function DataScreen() {
       
       setFileName(file_name || 'Excel File');
       
+      // Fetch sheet names to register file in registry
+      try {
+        const sheetsRes = await axios.get(
+          `${BACKEND_URL}/api/drive/file/${fileId}/sheets?session_id=${session}`
+        );
+        const sheetNames = sheetsRes.data.map((s: any) => s.name);
+        
+        // Detect file type and register
+        const { type, hasLayout } = detectFileType(sheetNames);
+        addToFileRegistry({
+          fileId,
+          fileName: file_name || 'Unknown',
+          fileType: type,
+          sheetNames,
+          hasLayoutSheets: hasLayout,
+          loadedAt: Date.now(),
+        });
+      } catch (err) {
+        console.log('Failed to get sheet names for registry');
+      }
+      
       const response = await axios.get(
         `${BACKEND_URL}/api/excel/read?session_id=${session}&file_id=${fileId}&sheet_name=${encodeURIComponent(sheetName)}&cell_range=${encodeURIComponent(cellRange)}`
       );
@@ -63,6 +84,7 @@ export default function DataScreen() {
       setExcelStore({
         data: response.data.data,
         fileName: fn || '',
+        fileId,
         sheetName: response.data.sheet_name,
         cellRange: response.data.cell_range,
         loadedAt: Date.now(),
