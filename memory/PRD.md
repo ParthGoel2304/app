@@ -210,7 +210,11 @@ Quick Actions
 
 ## Session Log
 
-### 2026-02-25 (Current Session)
+### 2026-02-25 (Current Session - Continued)
+- **FIX 1: Layout Column Mapping** - Layout already reads from correct columns (B=Rack, E=Size, I=Stock, J=Diff). Improved rack code matching to be more lenient (handles trailing dots, parentheses, case differences).
+- **FIX 2: Google Drive Cache** - Added `_t=${Date.now()}` timestamp and `Cache-Control: no-cache` header to force fresh data on files.tsx, sheets.tsx, and data.tsx.
+- **FIX 3: Default Tab = Home** - Added `initialRouteName="home"` to Tab navigator in `_layout.tsx`.
+
 - **COMPLETED: Sheet Library System**
   - Rewrote `store.ts` with SheetProfile type and CRUD operations
   - Rewrote `home.tsx` as sheet library manager
