@@ -447,6 +447,40 @@ export default function ParchiScreen() {
     setEditValue('');
   };
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Parchi</Text>
+        </View>
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#4285F4" />
+          <Text style={styles.loadingText}>Loading Parchi...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Parchi</Text>
+        </View>
+        <View style={styles.emptyBox}>
+          <Ionicons name="alert-circle-outline" size={64} color="#EA4335" />
+          <Text style={styles.emptyTitle}>Error Loading Parchi</Text>
+          <Text style={styles.emptySub}>{loadError}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={loadParchi}>
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -458,7 +492,7 @@ export default function ParchiScreen() {
               <TouchableOpacity onPress={shareWhatsApp} style={styles.headerBtn}>
                 <Ionicons name="share-social" size={20} color="#25D366" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={generatePDF} style={styles.headerBtn}>
+              <TouchableOpacity onPress={promptPdfName} style={styles.headerBtn}>
                 <Ionicons name="document" size={20} color="#EA4335" />
               </TouchableOpacity>
             </>
@@ -472,7 +506,7 @@ export default function ParchiScreen() {
       {items.length === 0 ? (
         <View style={styles.emptyBox}>
           <Ionicons name="document-text-outline" size={64} color="#d0d0d0" />
-          <Text style={styles.emptyTitle}>Parchi is Empty</Text>
+          <Text style={styles.emptyTitle}>No Parchi Found</Text>
           <Text style={styles.emptySub}>
             Use the Filter tab to search sizes, select them, and add here
           </Text>
