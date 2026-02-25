@@ -106,7 +106,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Parchi Builder</Text>
+        <Text style={styles.headerTitle}>Smart Excel Reader</Text>
         <TouchableOpacity onPress={handleDisconnect} style={styles.logoutBtn}>
           <Ionicons name="log-out-outline" size={22} color="#EA4335" />
         </TouchableOpacity>
