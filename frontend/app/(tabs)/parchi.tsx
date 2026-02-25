@@ -165,31 +165,24 @@ export default function ParchiScreen() {
   };
 
   const addFooterRow = () => {
-    Alert.prompt(
-      'Add Row',
-      'Enter label for new row:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Add',
-          onPress: (label) => {
-            if (label && label.trim()) {
-              const newRow: FooterRow = {
-                id: `custom_${Date.now()}`,
-                label: label.trim().toUpperCase(),
-                value: 0,
-                editable: true,
-              };
-              const updated = [...footerRows, newRow];
-              setFooterRows(updated);
-              saveAll(undefined, updated);
-            }
-          }
-        }
-      ],
-      'plain-text',
-      ''
-    );
+    setShowAddRow(true);
+    setNewRowLabel('');
+  };
+
+  const confirmAddRow = () => {
+    if (newRowLabel && newRowLabel.trim()) {
+      const newRow: FooterRow = {
+        id: `custom_${Date.now()}`,
+        label: newRowLabel.trim().toUpperCase(),
+        value: 0,
+        editable: true,
+      };
+      const updated = [...footerRows, newRow];
+      setFooterRows(updated);
+      saveAll(undefined, updated);
+    }
+    setShowAddRow(false);
+    setNewRowLabel('');
   };
 
   const deleteFooterRow = (id: string) => {
