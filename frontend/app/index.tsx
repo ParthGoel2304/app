@@ -167,15 +167,19 @@ export default function WelcomeScreen() {
           onPress={handleConnectDrive}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="logo-google" size={24} color="#fff" style={styles.buttonIcon} />
-              <Text style={styles.buttonText}>Connect Google Drive</Text>
-            </>
-          )}
+          <Ionicons name="logo-google" size={24} color="#fff" style={styles.buttonIcon} />
+          <Text style={styles.buttonText}>Connect Google Drive</Text>
         </TouchableOpacity>
+        
+        {loading && (
+          <TouchableOpacity 
+            style={styles.checkConnectionButton}
+            onPress={handleCheckConnection}
+          >
+            <Ionicons name="checkmark-circle" size={24} color="#4285F4" style={styles.buttonIcon} />
+            <Text style={styles.checkConnectionButtonText}>I've Connected - Continue</Text>
+          </TouchableOpacity>
+        )}
         
         <Text style={styles.disclaimer}>
           We only request read-only access to your files
