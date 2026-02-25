@@ -155,3 +155,14 @@ A mobile-first inventory lookup and quotation app for a steel/metal trading busi
 - Module store is session-only (cleared on app restart) — user must tap "Load Data" on next open
 - Cell range must start from Column A for correct column index calculations
 - Hindi audio requires device TTS support for hi-IN language
+
+---
+
+## Session Log
+
+### 2026-02-25 (Current Session)
+- Fixed connection issue by simplifying `.env` configuration
+- Removed problematic `EXPO_PACKAGER_HOSTNAME` and other unnecessary tunnel variables
+- Verified tunnel working: `https://umejvty-anonymous-3000.exp.direct`
+- All 5 tabs and Smart Filter logic confirmed working in web view
+- **Status:** Ready for user testing on Android device
