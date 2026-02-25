@@ -7,9 +7,10 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { 
-  getFileRegistry, getLayoutFiles, ExcelFile, 
-  getLayoutStore, setLayoutStore 
+  getSheetLibrary, getLayoutSheets, setSheetLibrary,
+  SheetProfile, updateSheetProfile
 } from '../../utils/store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -64,13 +65,13 @@ const JGI_LAYOUT = {
 };
 
 export default function LayoutScreen() {
-  // File registry state
-  const [layoutFiles, setLayoutFiles] = useState<ExcelFile[]>([]);
-  const [allFiles, setAllFiles] = useState<ExcelFile[]>([]);
-  const [showFilePicker, setShowFilePicker] = useState(false);
+  // Sheet library state
+  const [layoutSheets, setLayoutSheets] = useState<SheetProfile[]>([]);
+  const [allSheets, setAllSheets] = useState<SheetProfile[]>([]);
+  const [showSheetPicker, setShowSheetPicker] = useState(false);
   
-  // Selected file & layout
-  const [selectedFile, setSelectedFile] = useState<ExcelFile | null>(null);
+  // Selected sheet & layout
+  const [selectedSheet, setSelectedSheet] = useState<SheetProfile | null>(null);
   const [layoutType, setLayoutType] = useState<'jgt' | 'jgi' | null>(null);
   
   // Layout data
@@ -78,106 +79,168 @@ export default function LayoutScreen() {
   const [rackDataMap, setRackDataMap] = useState<Map<string, RackData>>(new Map());
   const [selectedRack, setSelectedRack] = useState<RackData | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
-  
-  // Session for API calls
-  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      loadFileRegistry();
+      loadSheetLibrary();
     }, [])
   );
 
-  const loadFileRegistry = async () => {
-    // Get session ID
-    const sid = await AsyncStorage.getItem('session_id');
-    setSessionId(sid);
+  const loadSheetLibrary = async () => {
+    // Load from AsyncStorage
+    const stored = await AsyncStorage.getItem('sheet_library');
+    if (stored) {
+      const library = JSON.parse(stored);
+      setSheetLibrary(library);
+    }
     
-    // Get files from registry
-    const registry = getFileRegistry();
-    setAllFiles(registry);
+    // Get all sheets and layout sheets
+    const all = getSheetLibrary();
+    const layouts = getLayoutSheets();
     
-    // Filter for layout files
-    const layouts = getLayoutFiles();
-    setLayoutFiles(layouts);
+    setAllSheets(all);
+    setLayoutSheets(layouts);
     
-    // If only one layout file, auto-select it
+    // Auto-select if only one layout sheet
     if (layouts.length === 1) {
-      setSelectedFile(layouts[0]);
+      setSelectedSheet(layouts[0]);
+      // If it has cached data, use it
+      if (layouts[0].data) {
+        parseLayoutData(layouts[0].data);
+        setDataLoaded(true);
+      }
     }
   };
 
-  const selectFile = (file: ExcelFile) => {
-    setSelectedFile(file);
-    setShowFilePicker(false);
+  const selectSheet = (sheet: SheetProfile) => {
+    setSelectedSheet(sheet);
+    setShowSheetPicker(false);
     setDataLoaded(false);
     setLayoutType(null);
+    setRackDataMap(new Map());
+    
+    // If sheet has cached data, use it
+    if (sheet.data) {
+      parseLayoutData(sheet.data);
+    }
+  };
+
+  const parseLayoutData = (rows: string[][]) => {
+    // Parse data into rack map
+    // Column B (index 1): Rack_Location
+    // Column E (index 4): Size
+    // Column I (index 8): Current Stock
+    // Column J (index 9): Size Diff
+    const newMap = new Map<string, RackData>();
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length < 10) continue;
+
+      const rackCode = (row[1] || '').toString().trim();
+      const size = (row[4] || '').toString().trim();
+      const stockStr = (row[8] || '0').toString().replace(/[^\d.-]/g, '');
+      const diffStr = (row[9] || '0').toString().replace(/[^\d.-]/g, '');
+
+      if (rackCode) {
+        newMap.set(rackCode.toUpperCase(), {
+          rackCode,
+          size,
+          stock: parseFloat(stockStr) || 0,
+          sizeDiff: parseFloat(diffStr) || 0,
+        });
+      }
+    }
+
+    setRackDataMap(newMap);
   };
 
   const loadLayoutData = async (type: 'jgt' | 'jgi') => {
-    if (!selectedFile || !sessionId) {
-      Alert.alert('Error', 'No file selected or session expired');
+    if (!selectedSheet) {
+      Alert.alert('Error', 'No sheet selected');
       return;
     }
 
     setLoading(true);
     setLayoutType(type);
-    setRackDataMap(new Map());
 
     try {
-      const sheetName = type === 'jgt' ? 'Inventory_Chart_JGT' : 'Inventory_Chart_JGI';
-      
-      const res = await fetch(
-        `${BACKEND_URL}/api/excel/read?session_id=${sessionId}&file_id=${selectedFile.fileId}&sheet_name=${sheetName}&cell_range=A1:K200`
+      // If we already have cached data, just use it
+      if (selectedSheet.data) {
+        parseLayoutData(selectedSheet.data);
+        setDataLoaded(true);
+        return;
+      }
+
+      // Otherwise, fetch from Drive
+      const sessionId = await AsyncStorage.getItem('session_id');
+      if (!sessionId) {
+        Alert.alert('Session Expired', 'Please login again');
+        return;
+      }
+
+      const res = await axios.get(
+        `${BACKEND_URL}/api/excel/read?session_id=${sessionId}&file_id=${selectedSheet.fileId}&sheet_name=${encodeURIComponent(selectedSheet.sheetName)}&cell_range=${encodeURIComponent(selectedSheet.range)}`
       );
 
-      if (!res.ok) {
-        throw new Error(`Failed to load ${sheetName}`);
-      }
-
-      const data = await res.json();
-      const rows: string[][] = data.rows || [];
-
-      // Parse data into rack map
-      // Column B (index 1): Rack_Location
-      // Column E (index 4): Size
-      // Column I (index 8): Current Stock
-      // Column J (index 9): Size Diff
-      const newMap = new Map<string, RackData>();
-
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length < 10) continue;
-
-        const rackCode = (row[1] || '').toString().trim();
-        const size = (row[4] || '').toString().trim();
-        const stockStr = (row[8] || '0').toString().replace(/[^\d.-]/g, '');
-        const diffStr = (row[9] || '0').toString().replace(/[^\d.-]/g, '');
-
-        if (rackCode) {
-          newMap.set(rackCode.toUpperCase(), {
-            rackCode,
-            size,
-            stock: parseFloat(stockStr) || 0,
-            sizeDiff: parseFloat(diffStr) || 0,
-          });
-        }
-      }
-
-      setRackDataMap(newMap);
-      setDataLoaded(true);
+      const rows: string[][] = res.data.data || [];
       
-      // Save to layout store
-      setLayoutStore({
+      // Update cached data
+      updateSheetProfile(selectedSheet.id, {
         data: rows,
-        fileName: selectedFile.fileName,
-        fileId: selectedFile.fileId,
-        sheetName,
-        cellRange: 'A1:K200',
-        loadedAt: Date.now(),
+        rowCount: res.data.row_count,
+        colCount: res.data.col_count,
+        lastRefreshed: Date.now(),
       });
+      
+      // Persist
+      const library = getSheetLibrary();
+      await AsyncStorage.setItem('sheet_library', JSON.stringify(library));
+      
+      parseLayoutData(rows);
+      setDataLoaded(true);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load layout');
+      Alert.alert('Error', err.response?.data?.detail || 'Failed to load layout data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshLayoutData = async () => {
+    if (!selectedSheet) return;
+    
+    setLoading(true);
+    
+    try {
+      const sessionId = await AsyncStorage.getItem('session_id');
+      if (!sessionId) {
+        Alert.alert('Session Expired', 'Please login again');
+        return;
+      }
+
+      const res = await axios.get(
+        `${BACKEND_URL}/api/excel/read?session_id=${sessionId}&file_id=${selectedSheet.fileId}&sheet_name=${encodeURIComponent(selectedSheet.sheetName)}&cell_range=${encodeURIComponent(selectedSheet.range)}`
+      );
+
+      const rows: string[][] = res.data.data || [];
+      
+      // Update cached data
+      updateSheetProfile(selectedSheet.id, {
+        data: rows,
+        rowCount: res.data.row_count,
+        colCount: res.data.col_count,
+        lastRefreshed: Date.now(),
+      });
+      
+      // Persist
+      const library = getSheetLibrary();
+      await AsyncStorage.setItem('sheet_library', JSON.stringify(library));
+      setLayoutSheets(getLayoutSheets());
+      
+      parseLayoutData(rows);
+      Alert.alert('Refreshed!', 'Layout data updated from Google Drive');
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.detail || 'Failed to refresh data');
     } finally {
       setLoading(false);
     }
@@ -246,42 +309,42 @@ export default function LayoutScreen() {
     return <View key={colIndex} style={styles.otherCell}><Text style={styles.otherText}>{cellText}</Text></View>;
   };
 
-  // No files loaded yet
-  if (allFiles.length === 0) {
+  // No sheets in library
+  if (allSheets.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}><Text style={styles.headerTitle}>Warehouse Layout</Text></View>
         <View style={styles.centerBox}>
           <Ionicons name="folder-open-outline" size={64} color="#5f6368" />
-          <Text style={styles.centerTitle}>No Files Loaded</Text>
+          <Text style={styles.centerTitle}>No Sheets Saved</Text>
           <Text style={styles.centerSub}>
-            Add Excel files from the Home tab first.{'\n'}
-            Files with layout sheets will appear here.
+            Save Excel sheets from the Home tab first.{'\n'}
+            Layout sheets will appear here.
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // No layout files (files loaded but none have layout sheets)
-  if (layoutFiles.length === 0) {
+  // No layout sheets found
+  if (layoutSheets.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}><Text style={styles.headerTitle}>Warehouse Layout</Text></View>
         <View style={styles.centerBox}>
           <Ionicons name="grid-outline" size={64} color="#5f6368" />
-          <Text style={styles.centerTitle}>No Layout Files</Text>
+          <Text style={styles.centerTitle}>No Layout Sheets</Text>
           <Text style={styles.centerSub}>
-            Loaded files don't have layout sheets.{'\n'}
-            Add MS_Inventory_System_FINAL from Home tab.
+            Save an Inventory_Chart sheet from{'\n'}
+            MS_Inventory_System file to view layouts.
           </Text>
-          <View style={styles.fileListSmall}>
-            <Text style={styles.fileListTitle}>Loaded Files:</Text>
-            {allFiles.map((f, i) => (
-              <View key={i} style={styles.fileItemSmall}>
+          <View style={styles.savedSheetsList}>
+            <Text style={styles.savedSheetsTitle}>Your Saved Sheets:</Text>
+            {allSheets.map((s, i) => (
+              <View key={i} style={styles.savedSheetItem}>
                 <Ionicons name="document" size={16} color="#FA7B17" />
-                <Text style={styles.fileItemTextSmall}>{f.fileName}</Text>
-                <Text style={styles.fileTypeBadge}>{f.fileType}</Text>
+                <Text style={styles.savedSheetText}>{s.displayName}</Text>
+                <Text style={styles.savedSheetType}>{s.sheetType}</Text>
               </View>
             ))}
           </View>
@@ -294,42 +357,49 @@ export default function LayoutScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Warehouse Layout</Text>
-        {layoutFiles.length > 1 && (
-          <TouchableOpacity style={styles.switchBtn} onPress={() => setShowFilePicker(true)}>
+        {layoutSheets.length > 1 && (
+          <TouchableOpacity style={styles.switchBtn} onPress={() => setShowSheetPicker(true)}>
             <Ionicons name="swap-horizontal" size={20} color="#4285F4" />
+          </TouchableOpacity>
+        )}
+        {selectedSheet && dataLoaded && (
+          <TouchableOpacity style={styles.refreshBtn} onPress={refreshLayoutData} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#4285F4" />
+            ) : (
+              <Ionicons name="refresh" size={20} color="#4285F4" />
+            )}
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Selected File Info */}
-      {selectedFile && (
-        <View style={styles.fileBar}>
+      {/* Selected Sheet Info */}
+      {selectedSheet && (
+        <View style={styles.sheetBar}>
           <Ionicons name="document" size={18} color="#34A853" />
-          <Text style={styles.fileBarText} numberOfLines={1}>{selectedFile.fileName}</Text>
-          {selectedFile.hasLayoutSheets && (
-            <View style={styles.layoutBadge}>
-              <Ionicons name="checkmark-circle" size={14} color="#34A853" />
-              <Text style={styles.layoutBadgeText}>Layout</Text>
-            </View>
-          )}
+          <Text style={styles.sheetBarText} numberOfLines={1}>{selectedSheet.displayName}</Text>
+          <View style={styles.layoutBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#34A853" />
+            <Text style={styles.layoutBadgeText}>Layout</Text>
+          </View>
         </View>
       )}
 
-      {/* No file selected - show file list */}
-      {!selectedFile && (
-        <View style={styles.fileListContainer}>
-          <Text style={styles.selectTitle}>Select Layout File:</Text>
-          {layoutFiles.map((file, idx) => (
+      {/* No sheet selected - show list */}
+      {!selectedSheet && (
+        <View style={styles.sheetListContainer}>
+          <Text style={styles.selectTitle}>Select Layout Sheet:</Text>
+          {layoutSheets.map((sheet, idx) => (
             <TouchableOpacity
               key={idx}
-              style={styles.fileOption}
-              onPress={() => selectFile(file)}
+              style={styles.sheetOption}
+              onPress={() => selectSheet(sheet)}
             >
-              <Ionicons name="document" size={24} color="#34A853" />
-              <View style={styles.fileOptionInfo}>
-                <Text style={styles.fileOptionName}>{file.fileName}</Text>
-                <Text style={styles.fileOptionSheets}>
-                  {file.sheetNames.filter(s => s.includes('Inventory_Chart')).join(', ')}
+              <Ionicons name="grid" size={24} color="#9C27B0" />
+              <View style={styles.sheetOptionInfo}>
+                <Text style={styles.sheetOptionName}>{sheet.displayName}</Text>
+                <Text style={styles.sheetOptionMeta}>
+                  {sheet.rowCount} rows • {sheet.range}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9aa0a6" />
@@ -338,8 +408,8 @@ export default function LayoutScreen() {
         </View>
       )}
 
-      {/* File selected but no layout loaded */}
-      {selectedFile && !dataLoaded && !loading && (
+      {/* Sheet selected but no layout type chosen */}
+      {selectedSheet && !dataLoaded && !loading && (
         <View style={styles.centerBox}>
           <Text style={styles.selectLayoutTitle}>Select Layout Type</Text>
           <View style={styles.layoutBtns}>
@@ -359,7 +429,7 @@ export default function LayoutScreen() {
       {loading && (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color="#4285F4" />
-          <Text style={styles.centerSub}>Loading {layoutType?.toUpperCase()} layout...</Text>
+          <Text style={styles.centerSub}>Loading layout...</Text>
         </View>
       )}
 
@@ -370,13 +440,13 @@ export default function LayoutScreen() {
           <View style={styles.tabBar}>
             <TouchableOpacity
               style={[styles.tab, layoutType === 'jgt' && styles.tabActive]}
-              onPress={() => loadLayoutData('jgt')}
+              onPress={() => setLayoutType('jgt')}
             >
               <Text style={[styles.tabText, layoutType === 'jgt' && styles.tabTextActive]}>JGT</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, layoutType === 'jgi' && styles.tabActive]}
-              onPress={() => loadLayoutData('jgi')}
+              onPress={() => setLayoutType('jgi')}
             >
               <Text style={[styles.tabText, layoutType === 'jgi' && styles.tabTextActive]}>JGI</Text>
             </TouchableOpacity>
@@ -420,25 +490,25 @@ export default function LayoutScreen() {
         </>
       )}
 
-      {/* File Picker Modal */}
-      <Modal visible={showFilePicker} transparent animationType="slide" onRequestClose={() => setShowFilePicker(false)}>
+      {/* Sheet Picker Modal */}
+      <Modal visible={showSheetPicker} transparent animationType="slide" onRequestClose={() => setShowSheetPicker(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.pickerModal}>
             <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Select Layout File</Text>
-              <TouchableOpacity onPress={() => setShowFilePicker(false)}>
+              <Text style={styles.pickerTitle}>Select Layout Sheet</Text>
+              <TouchableOpacity onPress={() => setShowSheetPicker(false)}>
                 <Ionicons name="close" size={24} color="#5f6368" />
               </TouchableOpacity>
             </View>
-            {layoutFiles.map((file, idx) => (
+            {layoutSheets.map((sheet, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={[styles.filePickerItem, selectedFile?.fileId === file.fileId && styles.filePickerItemActive]}
-                onPress={() => selectFile(file)}
+                style={[styles.sheetPickerItem, selectedSheet?.id === sheet.id && styles.sheetPickerItemActive]}
+                onPress={() => selectSheet(sheet)}
               >
-                <Ionicons name="document" size={24} color="#34A853" />
-                <Text style={styles.filePickerText}>{file.fileName}</Text>
-                {selectedFile?.fileId === file.fileId && (
+                <Ionicons name="grid" size={24} color="#9C27B0" />
+                <Text style={styles.sheetPickerText}>{sheet.displayName}</Text>
+                {selectedSheet?.id === sheet.id && (
                   <Ionicons name="checkmark-circle" size={20} color="#4285F4" />
                 )}
               </TouchableOpacity>
@@ -506,35 +576,36 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1a1a2e' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
+    paddingHorizontal: 20, paddingVertical: 16, gap: 12,
     backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460',
   },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff', flex: 1 },
   switchBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center' },
-  fileBar: {
+  refreshBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center' },
+  sheetBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#0f3460', paddingHorizontal: 16, paddingVertical: 10,
   },
-  fileBarText: { flex: 1, fontSize: 13, color: '#fff', fontWeight: '500' },
+  sheetBarText: { flex: 1, fontSize: 13, color: '#fff', fontWeight: '500' },
   layoutBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E6F4EA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   layoutBadgeText: { fontSize: 11, color: '#34A853', fontWeight: '600' },
   centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   centerTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginTop: 16 },
   centerSub: { fontSize: 14, color: '#9aa0a6', textAlign: 'center', marginTop: 8, lineHeight: 22 },
-  fileListSmall: { marginTop: 24, backgroundColor: '#0f3460', borderRadius: 12, padding: 16, width: '100%' },
-  fileListTitle: { fontSize: 12, color: '#9aa0a6', marginBottom: 10 },
-  fileItemSmall: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  fileItemTextSmall: { flex: 1, fontSize: 13, color: '#fff' },
-  fileTypeBadge: { fontSize: 10, color: '#FA7B17', backgroundColor: '#FEF0E6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  fileListContainer: { padding: 20 },
+  savedSheetsList: { marginTop: 24, backgroundColor: '#0f3460', borderRadius: 12, padding: 16, width: '100%' },
+  savedSheetsTitle: { fontSize: 12, color: '#9aa0a6', marginBottom: 10 },
+  savedSheetItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  savedSheetText: { flex: 1, fontSize: 13, color: '#fff' },
+  savedSheetType: { fontSize: 10, color: '#FA7B17', backgroundColor: '#FEF0E6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  sheetListContainer: { padding: 20 },
   selectTitle: { fontSize: 16, fontWeight: '600', color: '#fff', marginBottom: 16 },
-  fileOption: {
+  sheetOption: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: '#0f3460', borderRadius: 14, padding: 16, marginBottom: 10,
   },
-  fileOptionInfo: { flex: 1 },
-  fileOptionName: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  fileOptionSheets: { fontSize: 11, color: '#9aa0a6', marginTop: 4 },
+  sheetOptionInfo: { flex: 1 },
+  sheetOptionName: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  sheetOptionMeta: { fontSize: 11, color: '#9aa0a6', marginTop: 4 },
   selectLayoutTitle: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 24 },
   layoutBtns: { flexDirection: 'row', gap: 16 },
   layoutTypeBtn: {
@@ -573,9 +644,9 @@ const styles = StyleSheet.create({
   pickerModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   pickerTitle: { fontSize: 18, fontWeight: '700', color: '#202124' },
-  filePickerItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 12, marginBottom: 8, backgroundColor: '#f8f9fa' },
-  filePickerItemActive: { backgroundColor: '#E8F0FE', borderWidth: 2, borderColor: '#4285F4' },
-  filePickerText: { flex: 1, fontSize: 15, color: '#202124' },
+  sheetPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 12, marginBottom: 8, backgroundColor: '#f8f9fa' },
+  sheetPickerItemActive: { backgroundColor: '#E8F0FE', borderWidth: 2, borderColor: '#4285F4' },
+  sheetPickerText: { flex: 1, fontSize: 15, color: '#202124' },
   // Rack modal
   rackModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   rackModal: { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 340 },
