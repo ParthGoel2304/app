@@ -81,10 +81,11 @@ export default function LayoutScreen() {
   const [selectedSheet, setSelectedSheet] = useState<SheetProfile | null>(null);
   const [layoutType, setLayoutType] = useState<'jgt' | 'jgi' | null>(null);
   
-  // Layout data
+  // Layout data - now supports multiple entries per rack
   const [loading, setLoading] = useState(false);
-  const [rackDataMap, setRackDataMap] = useState<Map<string, RackData>>(new Map());
-  const [selectedRack, setSelectedRack] = useState<RackData | null>(null);
+  const [rackDataMap, setRackDataMap] = useState<Map<string, RackEntry[]>>(new Map());
+  const [selectedRackCode, setSelectedRackCode] = useState<string | null>(null);
+  const [selectedRackEntries, setSelectedRackEntries] = useState<RackEntry[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useFocusEffect(
