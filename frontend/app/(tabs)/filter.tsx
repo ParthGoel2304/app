@@ -853,7 +853,8 @@ const styles = StyleSheet.create({
   shortcutText: { fontSize: 13, fontWeight: '600', color: '#4285F4' },
   suggestionsBox: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0',
-    borderRadius: 12, marginTop: 8, maxHeight: 300,
+    borderRadius: 12, marginTop: 8, marginBottom: 8,
+    maxHeight: 220,  // Show 4-5 items max
   },
   suggestionsTitle: {
     fontSize: 12, fontWeight: '600', color: '#9aa0a6',
