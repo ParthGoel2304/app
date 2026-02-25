@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getExcelStore, getColOffset } from '../store';
+import { getExcelStore, getColOffset } from '../../utils/store';
 
 // ─── Hindi number conversion ──────────────────────────────────────────────────
 const H: Record<number, string> = {
