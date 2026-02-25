@@ -344,13 +344,6 @@ export default function LayoutScreen() {
         )}
       </TouchableOpacity>
     );
-            </Text>
-          )}
-        </TouchableOpacity>
-      );
-    }
-
-    return <View key={colIndex} style={styles.otherCell}><Text style={styles.otherText}>{cellText}</Text></View>;
   };
 
   // No sheets in library
