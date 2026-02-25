@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { clearExcelStore, getExcelStore } from '../store';
+import { clearExcelStore, getExcelStore } from '../../utils/store';
 
 export default function SettingsScreen() {
   const router = useRouter();
