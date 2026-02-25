@@ -1,67 +1,148 @@
-// Global in-memory store for Excel data (fast, no serialization overhead)
+// Sheet Library Store - manages saved sheet profiles and active selection
 
-export type FileType = 'stock' | 'layout' | 'mixed';
+export type SheetType = 'stock' | 'layout' | 'mixed';
 
-export interface ExcelFile {
-  fileId: string;
-  fileName: string;
-  fileType: FileType;
-  sheetNames: string[];
-  hasLayoutSheets: boolean;  // Has Inventory_Chart_JGT or JGI
-  loadedAt: number;
+export interface SheetProfile {
+  id: string;
+  displayName: string;        // User-editable name
+  fileName: string;           // Original file name
+  fileId: string;             // Google Drive file ID
+  sheetName: string;          // Sheet name in Excel
+  range: string;              // Cell range (e.g., "A1:Z100")
+  sheetType: SheetType;       // Auto-detected type
+  data: string[][] | null;    // Cached parsed data (null if not loaded)
+  rowCount: number;           // Number of rows
+  colCount: number;           // Number of columns
+  savedAt: number;            // Timestamp when saved
+  lastRefreshed: number;      // Timestamp when data was last fetched
 }
 
-export interface ExcelDataStore {
-  data: string[][];
-  fileName: string;
-  fileId: string;
-  sheetName: string;
-  cellRange: string;
-  loadedAt: number;
-}
+// In-memory sheet library
+let _sheetLibrary: SheetProfile[] = [];
+let _activeSheetId: string | null = null;
 
-// File Registry - stores metadata of all loaded files
-let _fileRegistry: ExcelFile[] = [];
+// ─── Sheet Library CRUD ─────────────────────────────────────────────────────
 
-export const getFileRegistry = () => _fileRegistry;
+export const getSheetLibrary = (): SheetProfile[] => _sheetLibrary;
 
-export const addToFileRegistry = (file: ExcelFile) => {
-  // Remove if already exists (update)
-  _fileRegistry = _fileRegistry.filter(f => f.fileId !== file.fileId);
-  _fileRegistry.push(file);
+export const setSheetLibrary = (library: SheetProfile[]): void => {
+  _sheetLibrary = library;
 };
 
-export const removeFromFileRegistry = (fileId: string) => {
-  _fileRegistry = _fileRegistry.filter(f => f.fileId !== fileId);
+export const getActiveSheetId = (): string | null => _activeSheetId;
+
+export const setActiveSheetId = (id: string | null): void => {
+  _activeSheetId = id;
 };
 
-export const clearFileRegistry = () => {
-  _fileRegistry = [];
+export const getActiveSheet = (): SheetProfile | null => {
+  if (!_activeSheetId) return null;
+  return _sheetLibrary.find(s => s.id === _activeSheetId) || null;
 };
 
-export const getLayoutFiles = () => {
-  return _fileRegistry.filter(f => f.hasLayoutSheets);
+export const addSheetProfile = (profile: SheetProfile): { success: boolean; error?: string } => {
+  // Check for duplicate (fileName + sheetName)
+  const exists = _sheetLibrary.find(
+    s => s.fileName === profile.fileName && s.sheetName === profile.sheetName
+  );
+  
+  if (exists) {
+    // Update existing instead of adding duplicate
+    _sheetLibrary = _sheetLibrary.map(s => 
+      s.id === exists.id ? { ...profile, id: exists.id } : s
+    );
+    return { success: true };
+  }
+  
+  _sheetLibrary.push(profile);
+  return { success: true };
 };
 
-export const getStockFiles = () => {
-  return _fileRegistry.filter(f => f.fileType === 'stock' || f.fileType === 'mixed');
+export const updateSheetProfile = (id: string, updates: Partial<SheetProfile>): boolean => {
+  const index = _sheetLibrary.findIndex(s => s.id === id);
+  if (index === -1) return false;
+  
+  _sheetLibrary[index] = { ..._sheetLibrary[index], ...updates };
+  return true;
 };
 
-// Active Stock Data Store (the currently loaded stock data for filter/parchi)
-let _excelStore: ExcelDataStore | null = null;
+export const removeSheetProfile = (id: string): boolean => {
+  const initialLength = _sheetLibrary.length;
+  _sheetLibrary = _sheetLibrary.filter(s => s.id !== id);
+  
+  // Clear active if removed
+  if (_activeSheetId === id) {
+    _activeSheetId = null;
+  }
+  
+  return _sheetLibrary.length < initialLength;
+};
 
-export const getExcelStore = () => _excelStore;
-export const setExcelStore = (store: ExcelDataStore) => { _excelStore = store; };
-export const clearExcelStore = () => { _excelStore = null; };
+export const clearSheetLibrary = (): void => {
+  _sheetLibrary = [];
+  _activeSheetId = null;
+};
 
-// Active Layout Data Store (the currently loaded layout data)
-let _layoutStore: ExcelDataStore | null = null;
+// ─── Sheet Type Detection ───────────────────────────────────────────────────
 
-export const getLayoutStore = () => _layoutStore;
-export const setLayoutStore = (store: ExcelDataStore) => { _layoutStore = store; };
-export const clearLayoutStore = () => { _layoutStore = null; };
+export const detectSheetType = (sheetName: string, fileName: string): SheetType => {
+  const nameLower = sheetName.toLowerCase();
+  const fileLower = fileName.toLowerCase();
+  
+  // Layout sheets
+  if (
+    nameLower.includes('inventory_chart') ||
+    nameLower.includes('jgt') ||
+    nameLower.includes('jgi') ||
+    nameLower.includes('layout')
+  ) {
+    return 'layout';
+  }
+  
+  // Stock sheets
+  if (
+    nameLower === 'stock' ||
+    nameLower.includes('stock') ||
+    nameLower.includes('inventory')
+  ) {
+    // Check if file also has layout indicators
+    if (fileLower.includes('inventory_system') || fileLower.includes('ms_inventory')) {
+      return 'mixed';
+    }
+    return 'stock';
+  }
+  
+  // Default to stock for unknown
+  return 'stock';
+};
 
-// Parse start column offset from cell range string (e.g. "A1:Z100" → 0, "C1:Z100" → 2)
+// ─── Filtered Getters ───────────────────────────────────────────────────────
+
+export const getStockSheets = (): SheetProfile[] => {
+  return _sheetLibrary.filter(s => s.sheetType === 'stock' || s.sheetType === 'mixed');
+};
+
+export const getLayoutSheets = (): SheetProfile[] => {
+  return _sheetLibrary.filter(s => 
+    s.sheetType === 'layout' || 
+    s.sheetName.toLowerCase().includes('inventory_chart')
+  );
+};
+
+// ─── Utility ────────────────────────────────────────────────────────────────
+
+export const generateSheetId = (): string => {
+  return `sheet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
+export const createDisplayName = (fileName: string, sheetName: string): string => {
+  // Remove extension from fileName
+  const baseName = fileName.replace(/\.xlsx?$/i, '');
+  return `${baseName} (${sheetName})`;
+};
+
+// ─── Column Offset Calculation ──────────────────────────────────────────────
+
 export function getColOffset(cellRange: string): number {
   try {
     const match = cellRange.match(/^([A-Z]+)/i);
@@ -77,24 +158,46 @@ export function getColOffset(cellRange: string): number {
   }
 }
 
-// Check if file has layout sheets
-export function detectFileType(sheetNames: string[]): { type: FileType; hasLayout: boolean } {
-  const hasLayoutSheets = sheetNames.some(s => 
-    s.includes('Inventory_Chart') || 
-    s.toLowerCase().includes('jgt') || 
-    s.toLowerCase().includes('jgi')
-  );
-  
-  const hasStockSheet = sheetNames.some(s => 
-    s.toLowerCase() === 'stock' || 
-    s.toLowerCase().includes('stock')
-  );
-  
-  if (hasLayoutSheets && hasStockSheet) {
-    return { type: 'mixed', hasLayout: true };
-  } else if (hasLayoutSheets) {
-    return { type: 'layout', hasLayout: true };
-  } else {
-    return { type: 'stock', hasLayout: false };
-  }
+// ─── Legacy Compatibility (for existing Filter/Parchi code) ─────────────────
+// These provide backward compatibility with existing code that uses getExcelStore()
+
+export interface ExcelDataStore {
+  data: string[][];
+  fileName: string;
+  fileId: string;
+  sheetName: string;
+  cellRange: string;
+  loadedAt: number;
 }
+
+export const getExcelStore = (): ExcelDataStore | null => {
+  const active = getActiveSheet();
+  if (!active || !active.data) return null;
+  
+  return {
+    data: active.data,
+    fileName: active.fileName,
+    fileId: active.fileId,
+    sheetName: active.sheetName,
+    cellRange: active.range,
+    loadedAt: active.lastRefreshed,
+  };
+};
+
+// Set excel store by updating active sheet's data
+export const setExcelStore = (store: ExcelDataStore): void => {
+  const active = getActiveSheet();
+  if (active) {
+    updateSheetProfile(active.id, {
+      data: store.data,
+      lastRefreshed: Date.now(),
+    });
+  }
+};
+
+export const clearExcelStore = (): void => {
+  const active = getActiveSheet();
+  if (active) {
+    updateSheetProfile(active.id, { data: null });
+  }
+};
