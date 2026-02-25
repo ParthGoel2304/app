@@ -267,19 +267,34 @@ async def list_excel_files(session_id: str = Query(...)):
     try:
         service = await get_drive_service(session_id)
         
-        # Query for Excel files
-        query = "mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel'"
+        # Query for Excel files - include trashed=false to ensure fresh results
+        query = "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
         
+        # Use supportsAllDrives to ensure we get fresh results
         results = service.files().list(
             q=query,
             pageSize=100,
             fields="files(id, name, modifiedTime, size)",
-            orderBy="modifiedTime desc"
+            orderBy="modifiedTime desc",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
         ).execute()
         
         files = results.get('files', [])
         
         # Filter out temp files (~$filename.xlsx) that appear when Excel is open
+        # Also deduplicate by file name, keeping the most recent version
+        seen_names = {}
+        for f in files:
+            name = f['name']
+            if name.startswith('~$'):
+                continue
+            if name not in seen_names:
+                seen_names[name] = f
+            # If we already have this name, keep the one with more recent modifiedTime
+            elif f['modifiedTime'] > seen_names[name]['modifiedTime']:
+                seen_names[name] = f
+        
         excel_files = [
             ExcelFile(
                 file_id=f['id'],
@@ -287,9 +302,11 @@ async def list_excel_files(session_id: str = Query(...)):
                 modified_time=f['modifiedTime'],
                 size=f.get('size', 'Unknown')
             ).dict()
-            for f in files
-            if not f['name'].startswith('~$')  # Skip temp files
+            for f in seen_names.values()
         ]
+        
+        # Sort by modifiedTime desc
+        excel_files.sort(key=lambda x: x['modified_time'], reverse=True)
         
         logger.info(f"Found {len(excel_files)} Excel files for session {session_id}")
         return {"files": excel_files}
