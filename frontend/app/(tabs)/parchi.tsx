@@ -825,9 +825,16 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#202124' },
   headerActions: { flexDirection: 'row', gap: 12 },
   headerBtn: { padding: 4 },
+  loadingBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { fontSize: 14, color: '#5f6368', marginTop: 12 },
   emptyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   emptyTitle: { fontSize: 20, fontWeight: '600', color: '#202124', marginTop: 16 },
   emptySub: { fontSize: 14, color: '#5f6368', textAlign: 'center', marginTop: 8 },
+  retryBtn: {
+    marginTop: 20, backgroundColor: '#4285F4', paddingVertical: 12, paddingHorizontal: 24,
+    borderRadius: 10,
+  },
+  retryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   content: { padding: 16 },
   omShree: {
     fontSize: 22, fontWeight: '800', color: '#202124',
