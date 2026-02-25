@@ -177,3 +177,28 @@ A mobile-first inventory lookup and quotation app for a steel/metal trading busi
   - GRAND TOTAL auto-calculated with all charges
   - Share buttons: WhatsApp (text) and PDF (expo-print)
 - **Status:** Ready for user testing on Android device
+
+### Phase 1 - Enhanced Smart Filter + Voice Search (COMPLETED)
+- **Category Shortcuts:** Type "Local", "HR", or "Apollo" to filter by category
+  - Local = rows 3-73
+  - HR/Coil = rows 74-109
+  - Apollo = rows 110-147
+- **Auto-suggestions:** Live suggestions as you type (top 15 results)
+- **Voice Search (Hindi):** Modal for Hindi number input with conversion
+  - Example: "बहत्तर बहत्तर पच्चीस" → 72X72X25
+- **Partial/Contains Search:** Matches partial size strings
+
+### Phase 2 - Inventory + Layout (COMPLETED)
+- **New Tab: Inventory**
+  - Full stock list with search and sorting
+  - Shows: Size, Alt Name, Size Diff, JGT Stock, JGI Stock, Total Stock
+  - Color-coded stock levels (green/yellow/red)
+  - Tap item for detailed modal
+- **New Tab: Layout (Warehouse Visual)**
+  - JGT and JGI layout tabs
+  - Loads from "MS_Inventory_System_FINAL" file in Drive
+  - Sheets: Inventory_Chart_JGT, Inventory_Chart_JGI
+  - Visual grid with rack codes (R1.2, L3.1, LA2.4, etc.)
+  - Clickable racks → shows stock details from master
+  - Color-coded: Green (in stock), Yellow (low), Red (empty)
+- **Updated Navigation:** 5 visible tabs: Home | Filter | Parchi | Inventory | Layout
