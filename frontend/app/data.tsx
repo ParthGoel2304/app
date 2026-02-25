@@ -124,14 +124,7 @@ export default function DataScreen() {
         </View>
         <TouchableOpacity 
           style={styles.filterButton}
-          onPress={() => router.push({
-            pathname: '/filter',
-            params: {
-              data: JSON.stringify(excelData?.data || []),
-              sheetName: excelData?.sheet_name,
-              fileName: fileName
-            }
-          })}
+          onPress={() => router.navigate('/(tabs)/filter' as any)}
         >
           <Ionicons name="funnel" size={16} color="#4285F4" />
           <Text style={styles.filterButtonText}>Filter</Text>
