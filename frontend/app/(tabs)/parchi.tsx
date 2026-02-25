@@ -54,6 +54,10 @@ export default function ParchiScreen() {
   const [editValue, setEditValue] = useState('');
   const [showAddRow, setShowAddRow] = useState(false);
   const [newRowLabel, setNewRowLabel] = useState('');
+  
+  // PDF name modal
+  const [showPdfNameModal, setShowPdfNameModal] = useState(false);
+  const [pdfFileName, setPdfFileName] = useState('');
 
   useFocusEffect(
     useCallback(() => {
