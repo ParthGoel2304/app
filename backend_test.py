@@ -6,7 +6,7 @@ import sys
 from urllib.parse import urlparse
 
 # Backend URL from review request
-BACKEND_URL = "https://smart-excel-reader.preview.emergentagent.com"
+BACKEND_URL = "https://inventory-lookup-app.preview.emergentagent.com"
 
 def test_endpoint(method, endpoint, expected_status=200, json_data=None, params=None):
     """Helper function to test an endpoint"""
