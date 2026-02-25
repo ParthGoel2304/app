@@ -1,18 +1,15 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Speech from 'expo-speech';
+import { useEffect } from 'react';
+import { View } from 'react-native';
+import { useRouter } from 'expo-router';
+
+// Old filter.tsx — redirects to the new tab-based filter
+export default function FilterRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/(tabs)/filter' as any);
+  }, []);
+  return <View style={{ flex: 1, backgroundColor: '#f5f5f5' }} />;
+}
 
 interface FilterResult {
   size: string;
