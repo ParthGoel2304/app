@@ -14,7 +14,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { setExcelStore, addToFileRegistry, detectFileType } from '../utils/store';
+import { 
+  addSheetProfile, 
+  generateSheetId, 
+  createDisplayName, 
+  detectSheetType,
+  setActiveSheetId,
+  getSheetLibrary,
+  SheetProfile
+} from '../utils/store';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -32,6 +40,11 @@ export default function DataScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [excelData, setExcelData] = useState<ExcelData | null>(null);
   const [fileName, setFileName] = useState<string>('');
+  const [fileId, setFileId] = useState<string>('');
+  const [sheetName, setSheetName] = useState<string>('');
+  const [cellRange, setCellRange] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [alreadySaved, setAlreadySaved] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -40,61 +53,95 @@ export default function DataScreen() {
   const loadData = async () => {
     try {
       const session = await AsyncStorage.getItem('session_id');
-      const fileId = await AsyncStorage.getItem('selected_file_id');
-      const file_name = await AsyncStorage.getItem('selected_file_name');
-      const sheetName = await AsyncStorage.getItem('selected_sheet');
-      const cellRange = await AsyncStorage.getItem('cell_range');
+      const fId = await AsyncStorage.getItem('selected_file_id');
+      const fName = await AsyncStorage.getItem('selected_file_name');
+      const sName = await AsyncStorage.getItem('selected_sheet');
+      const cRange = await AsyncStorage.getItem('cell_range');
       
-      if (!session || !fileId || !sheetName || !cellRange) {
+      if (!session || !fId || !sName || !cRange) {
         router.replace('/');
         return;
       }
       
-      setFileName(file_name || 'Excel File');
+      setFileName(fName || 'Excel File');
+      setFileId(fId);
+      setSheetName(sName);
+      setCellRange(cRange);
       
-      // Fetch sheet names to register file in registry
-      try {
-        const sheetsRes = await axios.get(
-          `${BACKEND_URL}/api/drive/file/${fileId}/sheets?session_id=${session}`
-        );
-        const sheetNames = sheetsRes.data.map((s: any) => s.name);
-        
-        // Detect file type and register
-        const { type, hasLayout } = detectFileType(sheetNames);
-        addToFileRegistry({
-          fileId,
-          fileName: file_name || 'Unknown',
-          fileType: type,
-          sheetNames,
-          hasLayoutSheets: hasLayout,
-          loadedAt: Date.now(),
-        });
-      } catch (err) {
-        console.log('Failed to get sheet names for registry');
-      }
+      // Check if already saved in library
+      const library = getSheetLibrary();
+      const exists = library.find(s => s.fileId === fId && s.sheetName === sName);
+      setAlreadySaved(!!exists);
       
       const response = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${session}&file_id=${fileId}&sheet_name=${encodeURIComponent(sheetName)}&cell_range=${encodeURIComponent(cellRange)}`
+        `${BACKEND_URL}/api/excel/read?session_id=${session}&file_id=${fId}&sheet_name=${encodeURIComponent(sName)}&cell_range=${encodeURIComponent(cRange)}`
       );
       
       setExcelData(response.data);
-
-      // Cache data in module store for the Filter tab
-      const fn = await AsyncStorage.getItem('selected_file_name');
-      setExcelStore({
-        data: response.data.data,
-        fileName: fn || '',
-        fileId,
-        sheetName: response.data.sheet_name,
-        cellRange: response.data.cell_range,
-        loadedAt: Date.now(),
-      });
     } catch (error: any) {
       console.error('Load data error:', error);
       Alert.alert('Error', error.response?.data?.detail || 'Failed to load Excel data');
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (!excelData || !fileName || !fileId || !sheetName || !cellRange) {
+      Alert.alert('Error', 'Data not loaded yet');
+      return;
+    }
+
+    setSaving(true);
+    
+    try {
+      const sheetType = detectSheetType(sheetName, fileName);
+      const displayName = createDisplayName(fileName, sheetName);
+      
+      const newProfile: SheetProfile = {
+        id: generateSheetId(),
+        displayName,
+        fileName,
+        fileId,
+        sheetName,
+        range: cellRange,
+        sheetType,
+        data: excelData.data,
+        rowCount: excelData.row_count,
+        colCount: excelData.col_count,
+        savedAt: Date.now(),
+        lastRefreshed: Date.now(),
+      };
+      
+      const result = addSheetProfile(newProfile);
+      
+      if (result.success) {
+        // Set as active sheet
+        setActiveSheetId(newProfile.id);
+        
+        // Persist to AsyncStorage
+        const library = getSheetLibrary();
+        await AsyncStorage.setItem('sheet_library', JSON.stringify(library));
+        await AsyncStorage.setItem('active_sheet_id', newProfile.id);
+        
+        setAlreadySaved(true);
+        
+        Alert.alert(
+          'Saved!',
+          `"${displayName}" added to your library`,
+          [
+            { text: 'Go to Home', onPress: () => router.replace('/(tabs)/home' as any) },
+            { text: 'Stay Here' }
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to save');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save sheet profile');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -144,13 +191,17 @@ export default function DataScreen() {
             {excelData?.row_count} rows × {excelData?.col_count} cols
           </Text>
         </View>
-        <TouchableOpacity 
-          style={styles.filterButton}
-          onPress={() => router.navigate('/(tabs)/filter' as any)}
-        >
-          <Ionicons name="funnel" size={16} color="#4285F4" />
-          <Text style={styles.filterButtonText}>Filter</Text>
-        </TouchableOpacity>
+        <View style={[
+          styles.typeBadge,
+          { backgroundColor: detectSheetType(sheetName, fileName) === 'layout' ? '#F3E5F5' : '#E6F4EA' }
+        ]}>
+          <Text style={[
+            styles.typeBadgeText,
+            { color: detectSheetType(sheetName, fileName) === 'layout' ? '#9C27B0' : '#34A853' }
+          ]}>
+            {detectSheetType(sheetName, fileName).toUpperCase()}
+          </Text>
+        </View>
       </View>
       
       <ScrollView
@@ -165,7 +216,7 @@ export default function DataScreen() {
       >
         <ScrollView horizontal showsHorizontalScrollIndicator={true}>
           <View style={styles.tableContainer}>
-            {excelData?.data.map((row, rowIndex) => (
+            {excelData?.data.slice(0, 20).map((row, rowIndex) => (
               <View key={rowIndex} style={styles.tableRow}>
                 {row.map((cell, cellIndex) => (
                   <View
@@ -188,18 +239,61 @@ export default function DataScreen() {
                 ))}
               </View>
             ))}
+            {excelData && excelData.row_count > 20 && (
+              <View style={styles.moreRowsIndicator}>
+                <Text style={styles.moreRowsText}>
+                  + {excelData.row_count - 20} more rows...
+                </Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       </ScrollView>
       
       <View style={styles.footer}>
+        {/* Save to Library Button - Main CTA */}
         <TouchableOpacity
-          style={styles.backToFilesButton}
-          onPress={handleBackToFiles}
+          style={[
+            styles.saveButton,
+            alreadySaved && styles.saveButtonSaved
+          ]}
+          onPress={handleSaveToLibrary}
+          disabled={saving || alreadySaved}
         >
-          <Ionicons name="folder-outline" size={20} color="#4285F4" />
-          <Text style={styles.backToFilesButtonText}>Back to Files</Text>
+          {saving ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : alreadySaved ? (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#34A853" />
+              <Text style={[styles.saveButtonText, styles.saveButtonTextSaved]}>
+                Saved to Library
+              </Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="bookmark" size={20} color="#fff" />
+              <Text style={styles.saveButtonText}>Save to Library</Text>
+            </>
+          )}
         </TouchableOpacity>
+
+        <View style={styles.footerRow}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleBackToFiles}
+          >
+            <Ionicons name="folder-outline" size={18} color="#4285F4" />
+            <Text style={styles.secondaryButtonText}>Browse Files</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => router.navigate('/(tabs)/filter' as any)}
+          >
+            <Ionicons name="funnel" size={18} color="#4285F4" />
+            <Text style={styles.secondaryButtonText}>Filter</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -253,6 +347,7 @@ const styles = StyleSheet.create({
   statsBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#E8F0FE',
@@ -265,6 +360,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#5f6368',
     marginLeft: 6,
+  },
+  typeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   scrollView: {
     flex: 1,
@@ -294,25 +398,62 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  moreRowsIndicator: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  moreRowsText: {
+    fontSize: 13,
+    color: '#5f6368',
+    fontStyle: 'italic',
+  },
   footer: {
     padding: 16,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
-  backToFilesButton: {
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#34A853',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 12,
+  },
+  saveButtonSaved: {
+    backgroundColor: '#E6F4EA',
+    borderWidth: 1,
+    borderColor: '#34A853',
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  saveButtonTextSaved: {
+    color: '#34A853',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  secondaryButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#4285F4',
+    gap: 6,
   },
-  backToFilesButtonText: {
-    fontSize: 16,
+  secondaryButtonText: {
+    fontSize: 14,
     color: '#4285F4',
     fontWeight: '600',
-    marginLeft: 8,
   },
 });
