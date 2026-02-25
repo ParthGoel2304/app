@@ -279,6 +279,7 @@ async def list_excel_files(session_id: str = Query(...)):
         
         files = results.get('files', [])
         
+        # Filter out temp files (~$filename.xlsx) that appear when Excel is open
         excel_files = [
             ExcelFile(
                 file_id=f['id'],
@@ -287,6 +288,7 @@ async def list_excel_files(session_id: str = Query(...)):
                 size=f.get('size', 'Unknown')
             ).dict()
             for f in files
+            if not f['name'].startswith('~$')  # Skip temp files
         ]
         
         logger.info(f"Found {len(excel_files)} Excel files for session {session_id}")
