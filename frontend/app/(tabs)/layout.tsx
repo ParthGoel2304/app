@@ -23,6 +23,13 @@ interface RackData {
   sizeDiff: number;
 }
 
+// Support multiple items per rack (for duplicates)
+interface RackEntry {
+  size: string;
+  stock: number;
+  sizeDiff: number;
+}
+
 // JGT Visual Layout Structure
 const JGT_LAYOUT = {
   title: 'JGT Visual Inventory Layout',
