@@ -220,19 +220,6 @@ async def drive_callback(code: str = Query(...), state: str = Query(...)):
         
         logger.info(f"Drive credentials obtained for session {session_id}")
         
-        # Validate scopes
-        required_scopes = {"https://www.googleapis.com/auth/drive.readonly"}
-        granted_scopes = set(credentials.scopes or [])
-        
-        # Check if required scopes are granted (Google may add extra scopes)
-        if not required_scopes.issubset(granted_scopes):
-            missing = required_scopes - granted_scopes
-            logger.error(f"Missing required Drive scopes: {missing}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Missing required Drive scopes: {', '.join(missing)}"
-            )
-        
         # Store credentials in database
         creds_data = {
             "session_id": session_id,
