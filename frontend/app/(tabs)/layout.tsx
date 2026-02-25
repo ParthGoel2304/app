@@ -298,13 +298,16 @@ export default function LayoutScreen() {
   };
 
   const isLabel = (text: string): boolean => {
-    const labels = ['office side', 'gate side', 'gap', 'others', '3x1.5x20'];
-    return labels.some(l => text.toLowerCase().includes(l.toLowerCase()));
+    // Only filter actual zone labels, NOT rack IDs like "Others" or "S1"
+    // "Others" and "S1" are valid rack IDs for overflow zones
+    const labels = ['office side', 'gate side'];
+    return labels.some(l => text.toLowerCase() === l.toLowerCase());
   };
 
   const handleRackPress = (rackCode: string) => {
-    const rackInfo = getRackInfo(rackCode);
-    setSelectedRack(rackInfo || { rackCode, size: 'No data', stock: 0, sizeDiff: 0 });
+    const entries = getRackInfo(rackCode);
+    setSelectedRackCode(rackCode);
+    setSelectedRackEntries(entries);
   };
 
   const currentLayout = layoutType === 'jgi' ? JGI_LAYOUT : JGT_LAYOUT;
