@@ -17,7 +17,8 @@ A mobile-first inventory lookup and quotation app for a steel/metal trading busi
 - "I've Connected" button to check auth status post-browser redirect
 
 ### Navigation
-- Bottom tab bar: **Home | Recent | Filter | Parchi | Settings**
+- Bottom tab bar: **Home | Filter | Parchi | Inventory | Layout**
+- (Recent & Settings accessible via menu/navigation)
 
 ### Home Tab
 - Shows currently active file info (name, sheet, range) with "Ready" badge
