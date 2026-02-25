@@ -165,4 +165,14 @@ A mobile-first inventory lookup and quotation app for a steel/metal trading busi
 - Removed problematic `EXPO_PACKAGER_HOSTNAME` and other unnecessary tunnel variables
 - Verified tunnel working: `https://umejvty-anonymous-3000.exp.direct`
 - All 5 tabs and Smart Filter logic confirmed working in web view
+- **CRITICAL FIX:** Updated rate calculation formula from `Basic Rate + Size Diff` to `Basic Rate + (Size Diff / 1000)`
+- **Major Parchi Redesign:**
+  - Added full header: Company Name, Location, Date, Vehicle No (all editable)
+  - New table columns: S.N., SIZE, PCS, WT(KG), RATE, AMOUNT
+  - Auto-calculated TOTAL row
+  - Editable footer rows: LOADING, KANTA, GST @18% (default)
+  - Footer rows are reorderable (up/down arrows) and deletable
+  - Custom rows can be added (Add Row button)
+  - GRAND TOTAL auto-calculated with all charges
+  - Share buttons: WhatsApp (text) and PDF (expo-print)
 - **Status:** Ready for user testing on Android device
