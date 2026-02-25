@@ -134,29 +134,33 @@ export default function LayoutScreen() {
   };
 
   const parseLayoutData = (rows: string[][]) => {
-    // Parse data into rack map
+    // Parse data into rack map - supports multiple entries per rack
     // Column B (index 1): Rack_Location
     // Column E (index 4): Size
     // Column I (index 8): Current Stock
     // Column J (index 9): Size Diff
-    const newMap = new Map<string, RackData>();
+    const newMap = new Map<string, RackEntry[]>();
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length < 10) continue;
 
-      const rackCode = (row[1] || '').toString().trim();
+      const rackCode = (row[1] || '').toString().trim().toUpperCase();
       const size = (row[4] || '').toString().trim();
       const stockStr = (row[8] || '0').toString().replace(/[^\d.-]/g, '');
       const diffStr = (row[9] || '0').toString().replace(/[^\d.-]/g, '');
 
       if (rackCode) {
-        newMap.set(rackCode.toUpperCase(), {
-          rackCode,
+        const entry: RackEntry = {
           size,
           stock: parseFloat(stockStr) || 0,
           sizeDiff: parseFloat(diffStr) || 0,
-        });
+        };
+        
+        // Add to existing entries or create new array
+        const existing = newMap.get(rackCode) || [];
+        existing.push(entry);
+        newMap.set(rackCode, existing);
       }
     }
 
