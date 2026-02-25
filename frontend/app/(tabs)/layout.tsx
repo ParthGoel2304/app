@@ -137,14 +137,19 @@ export default function LayoutScreen() {
     }
   };
 
-  // Open file picker
+  // Open file picker - MODAL ONLY, NO NAVIGATION
   const openFilePicker = async () => {
     if (!sessionId) {
-      // No session, redirect to login
-      router.push('/' as any);
+      // No session - show alert, don't redirect
+      Alert.alert(
+        'Connect to Google Drive',
+        'Please connect to Google Drive from the Home tab first.',
+        [{ text: 'OK' }]
+      );
       return;
     }
     
+    // Open modal directly - no navigation
     setShowFilePicker(true);
     setLoadingFiles(true);
     
@@ -152,14 +157,15 @@ export default function LayoutScreen() {
       const res = await fetch(`${BACKEND_URL}/api/drive/files?session_id=${sessionId}`);
       const allFiles = await res.json();
       
-      // Filter for Excel files
+      // Filter for Excel files only
       const excelFiles = allFiles.filter((f: any) => 
         f.name.endsWith('.xlsx') || f.name.endsWith('.xls') || 
         f.mimeType?.includes('spreadsheet')
       );
       setFiles(excelFiles);
     } catch (err) {
-      Alert.alert('Error', 'Failed to load files');
+      Alert.alert('Error', 'Failed to load files from Drive');
+      setShowFilePicker(false);
     } finally {
       setLoadingFiles(false);
     }
