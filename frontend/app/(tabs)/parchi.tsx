@@ -644,10 +644,29 @@ export default function ParchiScreen() {
               </View>
             ))}
             
-            <TouchableOpacity style={styles.addRowBtn} onPress={addFooterRow}>
-              <Ionicons name="add-circle" size={18} color="#4285F4" />
-              <Text style={styles.addRowText}>Add Row</Text>
-            </TouchableOpacity>
+            {showAddRow ? (
+              <View style={styles.addRowInput}>
+                <TextInput
+                  style={styles.addRowTextInput}
+                  value={newRowLabel}
+                  onChangeText={setNewRowLabel}
+                  placeholder="Enter row label (e.g. TRANSPORT)"
+                  placeholderTextColor="#9aa0a6"
+                  autoFocus
+                />
+                <TouchableOpacity style={styles.addRowConfirm} onPress={confirmAddRow}>
+                  <Ionicons name="checkmark" size={18} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.addRowCancel} onPress={() => setShowAddRow(false)}>
+                  <Ionicons name="close" size={18} color="#EA4335" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.addRowBtn} onPress={addFooterRow}>
+                <Ionicons name="add-circle" size={18} color="#4285F4" />
+                <Text style={styles.addRowText}>Add Row</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Grand Total */}
