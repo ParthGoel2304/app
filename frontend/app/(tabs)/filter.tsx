@@ -328,6 +328,46 @@ export default function FilterScreen() {
             />
           </View>
 
+          {/* Quick Rate Calculator */}
+          <View style={styles.calcCard}>
+            <View style={styles.calcHeader}>
+              <Ionicons name="calculator" size={18} color="#FA7B17" />
+              <Text style={styles.calcTitle}>Quick Rate Calculator</Text>
+            </View>
+            <View style={styles.calcRow}>
+              <View style={styles.calcInputWrap}>
+                <Text style={styles.calcLabel}>Weight (kg)</Text>
+                <TextInput
+                  style={styles.calcInput}
+                  value={calcWeight}
+                  onChangeText={setCalcWeight}
+                  placeholder="e.g. 500"
+                  placeholderTextColor="#c0c0c0"
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.calcInputWrap}>
+                <Text style={styles.calcLabel}>Rate (₹/kg)</Text>
+                <TextInput
+                  style={styles.calcInput}
+                  value={calcRate || basicRate}
+                  onChangeText={setCalcRate}
+                  placeholder={basicRate || 'e.g. 1200'}
+                  placeholderTextColor="#c0c0c0"
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+            {calcTotal && (
+              <View style={styles.calcResult}>
+                <Text style={styles.calcResultLabel}>Total Amount</Text>
+                <Text style={styles.calcResultValue}>
+                  ₹ {parseInt(calcTotal).toLocaleString('en-IN')}
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Buttons */}
           <View style={styles.buttonRow}>
             <TouchableOpacity
