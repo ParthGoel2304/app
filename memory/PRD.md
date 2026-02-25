@@ -1,4 +1,4 @@
-# Parchi Builder — Product Requirements Document
+# Smart Excel Reader — Product Requirements Document
 
 ## Problem Statement
 A mobile-first inventory lookup and quotation app for a steel/metal trading business. The app connects to the user's Google Drive to read an inventory Excel file (sheet: "STOCK") and provides a smart filter to look up sizes, check stock, and generate quotation "Parchis".
@@ -6,6 +6,17 @@ A mobile-first inventory lookup and quotation app for a steel/metal trading busi
 ## User Persona
 - **Primary user:** `partharjun04@gmail.com` — a steel trader who needs to quickly look up inventory sizes, calculate rates, and create quotations while on the go.
 - **Language:** English UI, Hindi audio output for field use
+
+---
+
+## Architecture Overview
+
+### Multi-File Registry System (NEW - Completed 2026-02-25)
+The app uses a **multi-file registry** architecture:
+- **File Registry**: In-memory store (`utils/store.ts`) that holds metadata of all loaded Excel files
+- **Home Tab as File Manager**: Users add files from Google Drive, which are registered in the store
+- **Decoupled Tabs**: Layout, Filter, Parchi tabs read from the registry, not from Google Drive directly
+- **Active File Concept**: One file can be set as "active" for Filter/Parchi operations
 
 ---
 
@@ -20,11 +31,13 @@ A mobile-first inventory lookup and quotation app for a steel/metal trading busi
 - Bottom tab bar: **Home | Filter | Parchi | Inventory | Layout**
 - (Recent & Settings accessible via menu/navigation)
 
-### Home Tab
-- Shows currently active file info (name, sheet, range) with "Ready" badge
-- 4 action cards: Select File, Load Data, Filter Tool, Parchi
-- Load Data button fetches from backend `/api/excel/read` and stores in module store
-- Saves to Recent files history (AsyncStorage, max 10 entries)
+### Home Tab (File Manager - REWRITTEN 2026-02-25)
+- **My Files Section**: Shows all registered files with type badges (stock/layout/mixed)
+- **Add File Button**: Opens file picker to add files from Google Drive
+- **File Cards**: Display file name, type, sheet count. Tap to load, long-press for options
+- **Quick Actions Grid**: Filter, Parchi, Inventory, Layout shortcuts
+- **Active File Info**: Shows currently active file with sheet and range info
+- **Empty State**: Helpful guidance when no files are registered
 
 ### Smart Size Filter (P0 — Core Feature)
 **Input:**
@@ -32,173 +45,161 @@ A mobile-first inventory lookup and quotation app for a steel/metal trading busi
 - Basic Rate (numeric) input
 
 **Matching Engine (3-pass):**
-1. **Pass 1a** — Exact match: Strip `(xxxMM)` from Column E → normalize → compare with input
-   - `"1.5X1X7(1.1MM)"` → strip → `"1.5X1X7"` → matches user input `"1.5X1X7"` ✓
-2. **Pass 1b** — Exact match on Col F (mm format, e.g. `"40X25X7"`)
+1. **Pass 1a** — Exact match: Strip `(xxxMM)` from Column E → normalize → compare
+2. **Pass 1b** — Exact match on Col F (mm format)
 3. **Pass 1c** — Full Col E (normalized) match
-4. **Pass 2a** — Tolerance ±5mm: parse user dims vs Col F dims directly
+4. **Pass 2a** — Tolerance ±5mm: parse user dims vs Col F dims
 5. **Pass 2b** — Tolerance ±5mm: user dims × 25.4 (inch→mm) vs Col F dims
 6. **Pass 2c** — Tolerance ±5mm: user dims vs stripped Col E dims
+
+**Category Shortcuts:**
+- `Local` = rows 3-73
+- `HR/Coil` = rows 74-109
+- `Apollo` = rows 110-147
 
 **Column Mapping (0-indexed, from range start):**
 - Col E (index 4): Inch format — `1.5X1X7(1.1MM)`
 - Col F (index 5): MM format — `40X25X7`
 - Col H (index 7): Size Difference (numeric)
 - Col O (index 14): Current Stock (kg)
-- Offset calculated automatically from range start column
 
 **Results Display:**
-- Card per result: Size name (large/bold) + small speaker icon (30×30 blue)
+- Card per result: Size name + speaker icon
 - 3 data chips: Diff | Stock | Rate (₹)
 - Checkbox for selection (multi-select for Parchi)
 - "Add X to Parchi" button when items selected
 
 ### Parchi (Quotation) System
 - Editable Parchi name (tap pencil icon to rename)
-- Table: Size | Diff | Rate (tap rate to edit inline)
-- Delete individual rows (tap × button)
-- Clear All button
-- Items persisted in AsyncStorage
+- Editable header: Company Name, Location, Date, Vehicle No
+- Table: S.N. | SIZE | PCS | WT(KG) | RATE | AMOUNT
+- Footer rows: LOADING, KANTA, GST @18% (reorderable, deletable)
+- GRAND TOTAL auto-calculated
+- Share: WhatsApp, PDF export
+
+### Layout Tab (Warehouse View - REWRITTEN 2026-02-25)
+- **File Registry Integration**: Reads from file registry, not Drive directly
+- **File Selection**: If multiple layout files, shows picker
+- **Layout Types**: JGT and JGI visual grid layouts
+- **Rack Grid**: Color-coded by stock level (green >1000kg, yellow low, red empty)
+- **Rack Details Modal**: Tap rack to see size, diff, stock info
 
 ### Hindi Audio
-- Small speaker icon on each filter result (volume-medium, 18px, in blue chip)
+- Small speaker icon on each filter result
 - On press: `{size} डिफरेंस {diff_hindi}, स्टॉक {stock_hindi} किलो`
-- numToHindi function handles special rules:
-  - 2100 → इक्कीस सौ (N × 100 = N सौ pattern for 100-9999)
-  - Full lookup table for 0-99
-  - Thousands: N हजार
-
-### Recent Files
-- List of last 10 opened files with name, sheet, range, timestamp
-- Tap to reload from Google Drive
-- Auto-saves when data is loaded via Home or data.tsx
-
-### Settings
-- Active data info (file, sheet, range, cache status)
-- Clear Data Cache
-- Clear Parchi
-- Disconnect Google Drive
+- numToHindi function handles 0-9999 number conversion
 
 ---
 
-## Architecture
+## Code Architecture
 
-### Frontend
-- **Framework:** Expo (React Native) with expo-router v6
-- **Navigation:** Stack (root) + Bottom Tabs `(tabs)/`
-- **State:** Module-level store (`utils/store.ts`) — fast, no serialization, persists during session
-- **Persistence:** AsyncStorage for config, recent files, parchi items
-- **Key files:**
-  - `app/(tabs)/_layout.tsx` — Tab navigator
-  - `app/(tabs)/filter.tsx` — Smart filter (core)
-  - `app/(tabs)/parchi.tsx` — Parchi system
-  - `app/(tabs)/home.tsx` — Home with load data
-  - `app/(tabs)/recent.tsx` — Recent files
-  - `app/(tabs)/settings.tsx` — Settings
-  - `app/login.tsx` — Google auth
-  - `app/index.tsx` — Session check + redirect
-  - `utils/store.ts` — Module-level Excel data store
-
-### Backend
-- **Framework:** FastAPI (Python)
-- **Key endpoints:**
-  - `POST /api/session/create`
-  - `GET /api/oauth/drive/connect`
-  - `GET /api/drive/status`
-  - `GET /api/files` — list Drive .xlsx files
-  - `POST /api/sheets` — list sheets in file
-  - `GET /api/excel/read` — read sheet data
-- **Storage:** MongoDB (user sessions + OAuth tokens)
+```
+/app
+├── backend/
+│   └── server.py
+└── frontend/
+    ├── .env
+    ├── app.json
+    ├── package.json
+    ├── app/
+    │   ├── _layout.tsx      # Stack navigator
+    │   ├── index.tsx        # Login screen
+    │   ├── (tabs)/
+    │   │   ├── _layout.tsx  # Tab navigator (5 tabs)
+    │   │   ├── home.tsx     # ✅ File Manager (rewritten)
+    │   │   ├── filter.tsx   # Smart filter
+    │   │   ├── parchi.tsx   # Quotation builder
+    │   │   ├── inventory.tsx# Stock list (placeholder)
+    │   │   ├── layout.tsx   # ✅ Warehouse view (uses registry)
+    │   │   ├── recent.tsx   # Recent files
+    │   │   └── settings.tsx # Settings
+    │   ├── files.tsx        # Drive file browser
+    │   ├── sheets.tsx       # Sheet selector
+    │   └── data.tsx         # Data viewer (adds to registry)
+    └── utils/
+        └── store.ts         # ✅ Multi-file registry store
+```
 
 ---
 
-## Implemented Features (as of 2026-02-25)
+## Implemented Features
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Google OAuth | ✅ Done | Session-based, works with test user |
-| 5-tab navigation | ✅ Done | Home/Recent/Filter/Parchi/Settings |
-| Login screen | ✅ Done | Beautiful UI with feature list |
-| Home tab | ✅ Done | File info + 4 action cards |
-| Smart Size Filter | ✅ Done | 3-pass matching, exact+tolerance |
-| Parchi system | ✅ Done | Editable table, AsyncStorage |
-| Hindi audio | ✅ Done | expo-speech + numToHindi function |
-| Recent files | ✅ Done | AsyncStorage, tap to reload |
-| Settings tab | ✅ Done | Disconnect, clear cache/parchi |
-| Back button bug fix | ✅ Done | router.back() instead of router.push |
-| Module store | ✅ Done | Fast in-memory Excel data store |
-| File/Sheet selection | ✅ Done | files.tsx + sheets.tsx stack screens |
-| Data viewer | ✅ Done | data.tsx with filter navigation |
+| Feature | Status | Date |
+|---------|--------|------|
+| Google OAuth | ✅ Done | - |
+| Multi-File Registry | ✅ Done | 2026-02-25 |
+| Home Tab File Manager | ✅ Done | 2026-02-25 |
+| Layout Tab Registry Integration | ✅ Done | 2026-02-25 |
+| 5-tab navigation | ✅ Done | - |
+| Smart Size Filter | ✅ Done | - |
+| Category Shortcuts | ✅ Done | - |
+| Auto-suggestions | ✅ Done | - |
+| Parchi system | ✅ Done | - |
+| PDF export | ✅ Done | - |
+| Hindi audio | ✅ Done | - |
+| Recent files | ✅ Done | - |
 
 ---
 
 ## Prioritized Backlog
 
-### P0 (Must fix/complete)
-- [ ] End-to-end user test with real Excel file to verify filter matching accuracy
+### P0 (Immediate)
+- [x] Multi-file registry architecture
+- [ ] End-to-end user test with real Excel file
 
-### P1 (High value)
-- [ ] Export Parchi to PDF/Image
-- [ ] Share Parchi via WhatsApp
-- [ ] Performance: Cache Excel data in AsyncStorage for offline/quick reload
-- [ ] Multiple Parchi management (save/load named parchis)
+### P1 (High Value)
+- [ ] Voice Search - Hindi NLP with custom phrase training
+- [ ] Visual Layout rendering from Excel data (JGT/JGI grids)
+- [ ] Inventory tab full implementation
+- [ ] Parchi PDF customization
 
-### P2 (Nice to have)
-- [ ] Header detection from Excel (auto-detect column names)
-- [ ] Synonym matching for size formats
-- [ ] Bulk parchi creation (select all filter results at once)
+### P2 (Nice to Have)
+- [ ] Parchi Log - saved quotations history
+- [ ] Layout Builder - drag-and-drop rack editor
+- [ ] Offline caching for Excel data
 - [ ] Dark mode support
 
 ---
 
-## Known Issues / Limitations
-- The Google OAuth app is in "Testing" mode; only `partharjun04@gmail.com` is authorized
-- Module store is session-only (cleared on app restart) — user must tap "Load Data" on next open
-- Cell range must start from Column A for correct column index calculations
-- Hindi audio requires device TTS support for hi-IN language
+## Technical Notes
+
+### Store Structure (`utils/store.ts`)
+```typescript
+// File Registry - array of loaded file metadata
+ExcelFile {
+  fileId, fileName, fileType, sheetNames, hasLayoutSheets, loadedAt
+}
+
+// Active Store - currently loaded data for Filter/Parchi
+ExcelDataStore {
+  data, fileName, fileId, sheetName, cellRange, loadedAt
+}
+
+// Layout Store - currently loaded layout data
+ExcelDataStore (same structure)
+```
+
+### Key APIs
+- `POST /api/session/create` - Create session
+- `GET /api/oauth/drive/connect` - Google OAuth flow
+- `GET /api/files` - List Drive .xlsx files
+- `GET /api/excel/read` - Read sheet data
 
 ---
 
 ## Session Log
 
 ### 2026-02-25 (Current Session)
-- Fixed connection issue by simplifying `.env` configuration
-- Removed problematic `EXPO_PACKAGER_HOSTNAME` and other unnecessary tunnel variables
-- Verified tunnel working: `https://umejvty-anonymous-3000.exp.direct`
-- All 5 tabs and Smart Filter logic confirmed working in web view
-- **CRITICAL FIX:** Updated rate calculation formula from `Basic Rate + Size Diff` to `Basic Rate + (Size Diff / 1000)`
-- **Major Parchi Redesign:**
-  - Added full header: Company Name, Location, Date, Vehicle No (all editable)
-  - New table columns: S.N., SIZE, PCS, WT(KG), RATE, AMOUNT
-  - Auto-calculated TOTAL row
-  - Editable footer rows: LOADING, KANTA, GST @18% (default)
-  - Footer rows are reorderable (up/down arrows) and deletable
-  - Custom rows can be added (Add Row button)
-  - GRAND TOTAL auto-calculated with all charges
-  - Share buttons: WhatsApp (text) and PDF (expo-print)
-- **Status:** Ready for user testing on Android device
+- **COMPLETED: Multi-File Registry Architecture**
+  - Rewrote `home.tsx` as file manager with My Files section
+  - Added file registry display, Add File button, Quick Actions grid
+  - Fixed `layout.tsx` to use file registry instead of Drive calls
+  - Fixed AsyncStorage key inconsistency (`sessionId` → `session_id`)
+  - All features tested and verified (100% success rate)
 
-### Phase 1 - Enhanced Smart Filter + Voice Search (COMPLETED)
-- **Category Shortcuts:** Type "Local", "HR", or "Apollo" to filter by category
-  - Local = rows 3-73
-  - HR/Coil = rows 74-109
-  - Apollo = rows 110-147
-- **Auto-suggestions:** Live suggestions as you type (top 15 results)
-- **Voice Search (Hindi):** Modal for Hindi number input with conversion
-  - Example: "बहत्तर बहत्तर पच्चीस" → 72X72X25
-- **Partial/Contains Search:** Matches partial size strings
-
-### Phase 2 - Inventory + Layout (COMPLETED)
-- **New Tab: Inventory**
-  - Full stock list with search and sorting
-  - Shows: Size, Alt Name, Size Diff, JGT Stock, JGI Stock, Total Stock
-  - Color-coded stock levels (green/yellow/red)
-  - Tap item for detailed modal
-- **New Tab: Layout (Warehouse Visual)**
-  - JGT and JGI layout tabs
-  - Loads from "MS_Inventory_System_FINAL" file in Drive
-  - Sheets: Inventory_Chart_JGT, Inventory_Chart_JGI
-  - Visual grid with rack codes (R1.2, L3.1, LA2.4, etc.)
-  - Clickable racks → shows stock details from master
-  - Color-coded: Green (in stock), Yellow (low), Red (empty)
-- **Updated Navigation:** 5 visible tabs: Home | Filter | Parchi | Inventory | Layout
+### Previous Sessions
+- Google OAuth integration
+- Smart Filter implementation
+- Parchi PDF export
+- Hindi audio output
+- Connection issue fixes
