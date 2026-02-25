@@ -316,15 +316,17 @@ export default function LayoutScreen() {
   const renderRackCell = (cellText: string, colIndex: number) => {
     if (!cellText) return <View key={colIndex} style={styles.emptyCell} />;
 
+    // Gap cells
     if (cellText === 'Gap') {
       return <View key={colIndex} style={styles.gapCell}><Text style={styles.gapText}>Gap</Text></View>;
     }
 
-    if (isLabel(cellText) && !isRackCode(cellText)) {
+    // Zone labels ONLY (Office Side, Gate Side) - NOT Others or S1
+    if (cellText === 'Office Side' || cellText === 'Gate Side') {
       return <View key={colIndex} style={styles.labelCell}><Text style={styles.labelText}>{cellText}</Text></View>;
     }
 
-    // Treat all other cells as potential rack IDs (including "Others", "S1", etc.)
+    // ALL other cells are rack IDs (including "Others", "S1", etc.)
     const entries = getRackInfo(cellText);
     const totalStock = getTotalStock(entries);
     const bgColor = entries.length > 0 ? getStockColor(totalStock) : '#E8E8E8';
