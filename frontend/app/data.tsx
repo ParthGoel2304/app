@@ -82,7 +82,7 @@ export default function DataScreen() {
   };
 
   const handleBack = () => {
-    router.push('/sheets');
+    router.back();
   };
 
   const handleBackToFiles = () => {
