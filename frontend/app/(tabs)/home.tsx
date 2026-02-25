@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { setExcelStore, getExcelStore } from '../store';
+import { setExcelStore, getExcelStore } from '../../utils/store';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
