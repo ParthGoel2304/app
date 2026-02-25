@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, TextInput, Alert, Share, Platform
+  ScrollView, TextInput, Alert, Share, Platform,
+  ActivityIndicator, Modal
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,6 +37,10 @@ const DEFAULT_FOOTER_ROWS: FooterRow[] = [
 ];
 
 export default function ParchiScreen() {
+  // Loading & error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  
   // Header fields
   const [companyName, setCompanyName] = useState('');
   const [location, setLocation] = useState('');
@@ -66,6 +71,9 @@ export default function ParchiScreen() {
   );
 
   const loadParchi = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    
     try {
       const stored = await AsyncStorage.getItem('parchi_items');
       const br = await AsyncStorage.getItem('parchi_basic_rate');
@@ -74,29 +82,54 @@ export default function ParchiScreen() {
       
       if (stored) {
         const rawItems = JSON.parse(stored);
-        // Convert old format to new format with pcs, weight
-        const converted = rawItems.map((item: any) => ({
-          id: item.id,
-          size: item.size,
-          pcs: item.pcs || 0,
-          weight: item.weight || 0,
-          rate: item.finalRate || item.rate || 0,
-          diff: item.diff || 0,
-        }));
+        // Convert and validate items
+        const converted = rawItems
+          .filter((item: any) => item && item.id !== undefined)
+          .map((item: any) => ({
+            id: item.id || Date.now() + Math.random(),
+            size: item.size || 'Unknown',
+            pcs: typeof item.pcs === 'number' ? item.pcs : 0,
+            weight: typeof item.weight === 'number' ? item.weight : 0,
+            rate: typeof item.rate === 'number' ? item.rate : (item.finalRate || 0),
+            diff: typeof item.diff === 'number' ? item.diff : 0,
+          }));
         setItems(converted);
+      } else {
+        setItems([]);
       }
+      
       if (br) setBasicRate(br);
+      
       if (header) {
-        const h = JSON.parse(header);
-        setCompanyName(h.companyName || '');
-        setLocation(h.location || '');
-        setVehicleNo(h.vehicleNo || '');
-        setParchiDate(h.date || new Date().toLocaleDateString('en-IN'));
+        try {
+          const h = JSON.parse(header);
+          setCompanyName(h.companyName || '');
+          setLocation(h.location || '');
+          setVehicleNo(h.vehicleNo || '');
+          setParchiDate(h.date || new Date().toLocaleDateString('en-IN'));
+        } catch {
+          // Invalid header, use defaults
+        }
       }
+      
       if (footer) {
-        setFooterRows(JSON.parse(footer));
+        try {
+          const f = JSON.parse(footer);
+          if (Array.isArray(f) && f.length > 0) {
+            setFooterRows(f);
+          }
+        } catch {
+          // Invalid footer, use defaults
+          setFooterRows(DEFAULT_FOOTER_ROWS);
+        }
       }
-    } catch {}
+    } catch (err: any) {
+      console.log('Parchi load error:', err);
+      setLoadError('Failed to load Parchi data');
+      setItems([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const saveAll = async (
