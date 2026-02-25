@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  FlatList, Modal
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,15 @@ const H: Record<number, string> = {
   90:'नब्बे',91:'इक्यानवे',92:'बानवे',93:'तिरानवे',94:'चौरानवे',95:'पचानवे',96:'छियानवे',97:'सत्तानवे',98:'अट्ठानवे',99:'निन्यानवे'
 };
 
+// Reverse mapping: Hindi word → number
+const HINDI_TO_NUM: Record<string, number> = {};
+Object.entries(H).forEach(([num, hindi]) => {
+  HINDI_TO_NUM[hindi] = parseInt(num);
+});
+// Add common variations
+HINDI_TO_NUM['पाँच'] = 5;
+HINDI_TO_NUM['पांच'] = 5;
+
 function numToHindi(n: number): string {
   const neg = n < 0;
   const abs = Math.abs(Math.round(n));
@@ -41,18 +51,72 @@ function numToHindi(n: number): string {
   return (neg ? '-' : '') + abs.toString();
 }
 
+// Convert Hindi speech to size format
+function hindiToSize(hindiText: string): string {
+  // Split by spaces and common separators
+  const words = hindiText.toLowerCase().trim().split(/[\s,]+/);
+  const numbers: number[] = [];
+  
+  for (const word of words) {
+    // Check if it's a Hindi number word
+    if (HINDI_TO_NUM[word] !== undefined) {
+      numbers.push(HINDI_TO_NUM[word]);
+    }
+    // Check if it's already a digit
+    else if (/^\d+$/.test(word)) {
+      numbers.push(parseInt(word));
+    }
+    // Skip "by", "x", "into" etc
+    else if (['by', 'x', 'into', 'बाय', 'गुणा', 'में'].includes(word)) {
+      continue;
+    }
+  }
+  
+  // Join numbers with X
+  if (numbers.length >= 2) {
+    return numbers.join('X');
+  }
+  // If no numbers found, return original (might be a direct size input)
+  return hindiText.replace(/\s+/g, '').toUpperCase();
+}
+
+// ─── Category shortcuts ──────────────────────────────────────────────────────
+const CATEGORY_SHORTCUTS: Record<string, { start: number; end: number; label: string }> = {
+  'local': { start: 3, end: 73, label: 'Local Items' },
+  'l': { start: 3, end: 73, label: 'Local Items' },
+  'hr': { start: 74, end: 109, label: 'HR Coil Items' },
+  'coil': { start: 74, end: 109, label: 'HR Coil Items' },
+  'hr coil': { start: 74, end: 109, label: 'HR Coil Items' },
+  'h.r.': { start: 74, end: 109, label: 'HR Coil Items' },
+  'apollo': { start: 110, end: 147, label: 'Apollo Items' },
+  'a': { start: 110, end: 147, label: 'Apollo Items' },
+};
+
+// Special item keywords
+const SPECIAL_KEYWORDS = ['sdf', 'ddf', 't-9', 'rt-14', 'ms angle', 't9', 'rt14'];
+
 // ─── Size matching utilities ─────────────────────────────────────────────────
 interface FilterResult {
   inputSize: string;
   displaySize: string;
+  altName: string;
   sizeDiff: number;
   stock: string;
   adjustedRate: number;
   rowIndex: number;
 }
 
+interface SuggestionItem {
+  size: string;
+  altName: string;
+  sizeDiff: number;
+  stock: string;
+  rowIndex: number;
+  matchType: 'exact' | 'partial' | 'alt' | 'special' | 'category';
+}
+
 function normalizeStr(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, '').replace(/[×X×]/gi, 'x');
+  return s.toLowerCase().replace(/\s+/g, '').replace(/[×X×\*]/gi, 'x');
 }
 
 function stripBrackets(s: string): string {
@@ -72,78 +136,6 @@ function dimsMatch(a: number[], b: number[], tol = 5): boolean {
   return Array.from({ length: len }).every((_, i) => Math.abs(a[i] - b[i]) <= tol);
 }
 
-function findMatch(
-  userInput: string,
-  rows: string[][],
-  colEIdx: number,
-  colFIdx: number,
-  colHIdx: number,
-  colOIdx: number
-): FilterResult | null {
-  const normInput = normalizeStr(stripBrackets(userInput));
-
-  // Pass 1 — exact string matching
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const colE = (row[colEIdx] || '').toString().trim();
-    const colF = (row[colFIdx] || '').toString().trim();
-
-    // 1a: strip brackets from Col E (inch format) and compare
-    if (colE && normalizeStr(stripBrackets(colE)) === normInput) {
-      return buildResult(row, colE, userInput, i, colHIdx, colOIdx);
-    }
-    // 1b: compare with full Col E (user may include bracket too)
-    if (colE && normalizeStr(colE) === normInput) {
-      return buildResult(row, colE, userInput, i, colHIdx, colOIdx);
-    }
-    // 1c: direct match on Col F (mm format)
-    if (colF && normalizeStr(colF) === normInput) {
-      return buildResult(row, colE || colF, userInput, i, colHIdx, colOIdx);
-    }
-  }
-
-  // Pass 2 — tolerance-based dimension matching
-  const inputDims = parseDims(userInput);
-  if (inputDims.length >= 2) {
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const colE = (row[colEIdx] || '').toString().trim();
-      const colF = (row[colFIdx] || '').toString().trim();
-      const fDims = parseDims(colF);
-      const eDims = parseDims(stripBrackets(colE));
-
-      // 2a: user dims vs Col F dims (both treated as same unit)
-      if (fDims.length >= 2 && dimsMatch(inputDims, fDims)) {
-        return buildResult(row, colE || colF, userInput, i, colHIdx, colOIdx);
-      }
-      // 2b: user dims converted inch→mm vs Col F
-      const inputMm = inputDims.map(d => d * 25.4);
-      if (fDims.length >= 2 && dimsMatch(inputMm, fDims)) {
-        return buildResult(row, colE || colF, userInput, i, colHIdx, colOIdx);
-      }
-      // 2c: user dims vs stripped Col E (inch comparison)
-      if (eDims.length >= 2 && dimsMatch(inputDims, eDims)) {
-        return buildResult(row, colE || colF, userInput, i, colHIdx, colOIdx);
-      }
-    }
-  }
-  return null;
-}
-
-function buildResult(
-  row: string[],
-  displaySize: string,
-  inputSize: string,
-  rowIndex: number,
-  colHIdx: number,
-  colOIdx: number
-): FilterResult {
-  const raw = (row[colHIdx] || '0').toString().replace(/[^\d.-]/g, '');
-  const sizeDiff = parseFloat(raw) || 0;
-  const stock = (row[colOIdx] || '0').toString();
-  return { inputSize, displaySize, sizeDiff, stock, adjustedRate: 0, rowIndex };
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function FilterScreen() {
   const router = useRouter();
@@ -155,10 +147,19 @@ export default function FilterScreen() {
   const [dataAvailable, setDataAvailable] = useState(false);
   const [rowCount, setRowCount] = useState(0);
 
+  // Auto-suggestion state
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Voice search state
+  const [isListening, setIsListening] = useState(false);
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [voiceText, setVoiceText] = useState('');
+
+  // Quick calculator
   const [calcWeight, setCalcWeight] = useState('');
   const [calcRate, setCalcRate] = useState('');
 
-  // Auto-fill calc rate from basicRate
   const calcTotal = (() => {
     const w = parseFloat(calcWeight);
     const r = parseFloat(calcRate || basicRate);
@@ -173,6 +174,213 @@ export default function FilterScreen() {
     }, [])
   );
 
+  // Auto-suggestion logic
+  useEffect(() => {
+    if (!sizeInput.trim() || sizeInput.length < 1) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const store = getExcelStore();
+    if (!store || store.data.length < 2) return;
+
+    const offset = getColOffset(store.cellRange);
+    const eIdx = 4 - offset;  // Col E - Size
+    const fIdx = 5 - offset;  // Col F - Alt name
+    const hIdx = 7 - offset;  // Col H - Size diff
+    const oIdx = 14 - offset; // Col O - Stock
+
+    const query = normalizeStr(sizeInput);
+    const found: SuggestionItem[] = [];
+
+    // Check for category shortcut
+    const categoryMatch = CATEGORY_SHORTCUTS[query];
+    if (categoryMatch) {
+      // Return items from category range
+      for (let i = categoryMatch.start; i <= Math.min(categoryMatch.end, store.data.length - 1); i++) {
+        const row = store.data[i];
+        if (!row) continue;
+        const size = (row[eIdx] || '').toString().trim();
+        const altName = (row[fIdx] || '').toString().trim();
+        const diffRaw = (row[hIdx] || '0').toString().replace(/[^\d.-]/g, '');
+        const sizeDiff = parseFloat(diffRaw) || 0;
+        const stock = (row[oIdx] || '0').toString();
+        
+        if (size) {
+          found.push({ size, altName, sizeDiff, stock, rowIndex: i, matchType: 'category' });
+        }
+        if (found.length >= 15) break;
+      }
+    } else {
+      // Regular search
+      for (let i = 1; i < store.data.length; i++) {
+        const row = store.data[i];
+        if (!row) continue;
+        
+        const size = (row[eIdx] || '').toString().trim();
+        const altName = (row[fIdx] || '').toString().trim();
+        const diffRaw = (row[hIdx] || '0').toString().replace(/[^\d.-]/g, '');
+        const sizeDiff = parseFloat(diffRaw) || 0;
+        const stock = (row[oIdx] || '0').toString();
+        
+        if (!size) continue;
+
+        const normSize = normalizeStr(stripBrackets(size));
+        const normAlt = normalizeStr(altName);
+
+        // Exact match
+        if (normSize === query || normAlt === query) {
+          found.unshift({ size, altName, sizeDiff, stock, rowIndex: i, matchType: 'exact' });
+        }
+        // Partial match in size
+        else if (normSize.includes(query) || query.includes(normSize.substring(0, 3))) {
+          found.push({ size, altName, sizeDiff, stock, rowIndex: i, matchType: 'partial' });
+        }
+        // Partial match in alt name
+        else if (normAlt.includes(query)) {
+          found.push({ size, altName, sizeDiff, stock, rowIndex: i, matchType: 'alt' });
+        }
+        // Special keyword match
+        else if (SPECIAL_KEYWORDS.some(kw => normSize.includes(kw) && query.includes(kw.replace('-', '')))) {
+          found.push({ size, altName, sizeDiff, stock, rowIndex: i, matchType: 'special' });
+        }
+
+        if (found.length >= 15) break;
+      }
+    }
+
+    // Sort: exact > partial > alt > special > category
+    const priority = { exact: 0, partial: 1, alt: 2, special: 3, category: 4 };
+    found.sort((a, b) => priority[a.matchType] - priority[b.matchType]);
+
+    setSuggestions(found.slice(0, 15));
+    setShowSuggestions(found.length > 0);
+  }, [sizeInput]);
+
+  const selectSuggestion = (item: SuggestionItem) => {
+    setSizeInput(item.size);
+    setShowSuggestions(false);
+  };
+
+  // Voice search handler (simulated - will use device speech)
+  const startVoiceSearch = () => {
+    setVoiceModalVisible(true);
+    setVoiceText('');
+    // Note: expo-speech-recognition requires native build
+    // For now, show modal where user can type Hindi or use device keyboard voice
+    Alert.alert(
+      'Voice Search',
+      'Tap the microphone on your keyboard to speak in Hindi.\n\nExample: "बहत्तर बहत्तर पच्चीस" → 72X72X25',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const processVoiceInput = () => {
+    if (voiceText.trim()) {
+      const converted = hindiToSize(voiceText);
+      setSizeInput(converted);
+      setVoiceModalVisible(false);
+    }
+  };
+
+  const findMatches = (
+    query: string,
+    rows: string[][],
+    eIdx: number,
+    fIdx: number,
+    hIdx: number,
+    oIdx: number
+  ): FilterResult[] => {
+    const results: FilterResult[] = [];
+    const normQuery = normalizeStr(stripBrackets(query));
+    const queryDims = parseDims(query);
+
+    // Check category shortcut first
+    const categoryMatch = CATEGORY_SHORTCUTS[normQuery];
+    if (categoryMatch) {
+      for (let i = categoryMatch.start; i <= Math.min(categoryMatch.end, rows.length - 1); i++) {
+        const row = rows[i];
+        if (!row) continue;
+        const size = (row[eIdx] || '').toString().trim();
+        if (!size) continue;
+        
+        const altName = (row[fIdx] || '').toString().trim();
+        const diffRaw = (row[hIdx] || '0').toString().replace(/[^\d.-]/g, '');
+        const sizeDiff = parseFloat(diffRaw) || 0;
+        const stock = (row[oIdx] || '0').toString();
+        
+        results.push({
+          inputSize: query,
+          displaySize: size,
+          altName,
+          sizeDiff,
+          stock,
+          adjustedRate: 0,
+          rowIndex: i,
+        });
+      }
+      return results;
+    }
+
+    // Regular search
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row) continue;
+      
+      const colE = (row[eIdx] || '').toString().trim();
+      const colF = (row[fIdx] || '').toString().trim();
+      
+      if (!colE) continue;
+
+      const normE = normalizeStr(stripBrackets(colE));
+      const normF = normalizeStr(colF);
+      
+      let matched = false;
+      
+      // Exact match
+      if (normE === normQuery || normalizeStr(colE) === normQuery || normF === normQuery) {
+        matched = true;
+      }
+      // Contains match
+      else if (normE.includes(normQuery) || normF.includes(normQuery)) {
+        matched = true;
+      }
+      // Dimension tolerance match
+      else if (queryDims.length >= 2) {
+        const eDims = parseDims(stripBrackets(colE));
+        const fDims = parseDims(colF);
+        if (dimsMatch(queryDims, eDims) || dimsMatch(queryDims, fDims)) {
+          matched = true;
+        }
+        // Inch to mm conversion
+        const queryMm = queryDims.map(d => d * 25.4);
+        if (dimsMatch(queryMm, fDims)) {
+          matched = true;
+        }
+      }
+
+      if (matched) {
+        const altName = colF;
+        const diffRaw = (row[hIdx] || '0').toString().replace(/[^\d.-]/g, '');
+        const sizeDiff = parseFloat(diffRaw) || 0;
+        const stock = (row[oIdx] || '0').toString();
+        
+        results.push({
+          inputSize: query,
+          displaySize: colE,
+          altName,
+          sizeDiff,
+          stock,
+          adjustedRate: 0,
+          rowIndex: i,
+        });
+      }
+    }
+    
+    return results;
+  };
+
   const handleFilter = () => {
     const store = getExcelStore();
     if (!store || store.data.length === 0) {
@@ -180,7 +388,7 @@ export default function FilterScreen() {
       return;
     }
     if (!sizeInput.trim()) {
-      Alert.alert('Input Required', 'Enter at least one size');
+      Alert.alert('Input Required', 'Enter at least one size or category');
       return;
     }
     if (!basicRate || isNaN(parseFloat(basicRate))) {
@@ -189,36 +397,45 @@ export default function FilterScreen() {
     }
 
     setLoading(true);
+    setShowSuggestions(false);
+    
     const rate = parseFloat(basicRate);
     const offset = getColOffset(store.cellRange);
-    // Column indices adjusted for range start offset
-    // E=5th col (1-indexed), F=6th, H=8th, O=15th
-    const eIdx = 4 - offset;  // Col E
-    const fIdx = 5 - offset;  // Col F
-    const hIdx = 7 - offset;  // Col H
-    const oIdx = 14 - offset; // Col O
+    const eIdx = 4 - offset;
+    const fIdx = 5 - offset;
+    const hIdx = 7 - offset;
+    const oIdx = 14 - offset;
 
-    const sizes = sizeInput.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
-    const found: FilterResult[] = [];
+    const queries = sizeInput.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+    const allResults: FilterResult[] = [];
     const notFound: string[] = [];
 
-    sizes.forEach(sz => {
-      const match = findMatch(sz, store.data, eIdx, fIdx, hIdx, oIdx);
-      if (match) {
-        // Formula: Final Rate = Basic Rate + (Size Difference / 1000)
-        const finalRate = rate + (match.sizeDiff / 1000);
-        found.push({ ...match, adjustedRate: parseFloat(finalRate.toFixed(2)) });
+    queries.forEach(q => {
+      const matches = findMatches(q, store.data, eIdx, fIdx, hIdx, oIdx);
+      if (matches.length > 0) {
+        matches.forEach(m => {
+          // Formula: Final Rate = Basic Rate + (Size Diff / 1000)
+          const finalRate = rate + (m.sizeDiff / 1000);
+          allResults.push({ ...m, adjustedRate: parseFloat(finalRate.toFixed(2)) });
+        });
       } else {
-        notFound.push(sz);
+        notFound.push(q);
       }
     });
 
-    setResults(found);
+    // Remove duplicates by rowIndex
+    const unique = allResults.filter((item, idx, arr) => 
+      arr.findIndex(x => x.rowIndex === item.rowIndex) === idx
+    );
+
+    setResults(unique);
     setSelected(new Set());
     setLoading(false);
 
-    if (notFound.length > 0) {
+    if (notFound.length > 0 && queries.length > 1) {
       Alert.alert('Not Found', `No match for:\n${notFound.join(', ')}`);
+    } else if (unique.length === 0) {
+      Alert.alert('No Results', `No items found for "${sizeInput}"`);
     }
   };
 
@@ -240,8 +457,8 @@ export default function FilterScreen() {
       const newItems = toAdd.map(r => ({
         id: Date.now() + Math.random(),
         size: r.displaySize,
-        pcs: 0,  // User will enter manually
-        weight: 0,  // User will enter manually
+        pcs: 0,
+        weight: 0,
         rate: r.adjustedRate,
         diff: r.sizeDiff,
         stock: r.stock,
@@ -271,7 +488,7 @@ export default function FilterScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Size Filter</Text>
+          <Text style={styles.headerTitle}>Smart Filter</Text>
         </View>
         <View style={styles.noDataBox}>
           <Ionicons name="document-outline" size={64} color="#d0d0d0" />
@@ -292,7 +509,7 @@ export default function FilterScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Size Filter</Text>
+        <Text style={styles.headerTitle}>Smart Filter</Text>
         <View style={styles.rowBadge}>
           <Text style={styles.rowBadgeText}>{rowCount} rows</Text>
         </View>
@@ -303,22 +520,67 @@ export default function FilterScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {/* Size Input */}
+          {/* Search Input with Voice */}
           <View style={styles.section}>
-            <Text style={styles.label}>Sizes to Search</Text>
+            <Text style={styles.label}>Search Size / Category</Text>
             <Text style={styles.hint}>
-              Separate by comma, newline or semicolon{' '}·{' '}e.g. 1.5X1X7, 2X1.5X8
+              Type size (72X72X25) or category (Local, HR, Apollo)
             </Text>
-            <TextInput
-              style={styles.multilineInput}
-              value={sizeInput}
-              onChangeText={setSizeInput}
-              placeholder={"1.5X1X7\n2X1.5X8, 3X2X10"}
-              placeholderTextColor="#c0c0c0"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
+            <View style={styles.searchRow}>
+              <TextInput
+                style={styles.searchInput}
+                value={sizeInput}
+                onChangeText={setSizeInput}
+                placeholder="1.5X1X7 or Local or HR"
+                placeholderTextColor="#c0c0c0"
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity style={styles.voiceBtn} onPress={startVoiceSearch}>
+                <Ionicons name="mic" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Auto-suggestions */}
+            {showSuggestions && suggestions.length > 0 && (
+              <View style={styles.suggestionsBox}>
+                <Text style={styles.suggestionsTitle}>
+                  {suggestions[0].matchType === 'category' ? 'Category Items' : 'Suggestions'}
+                </Text>
+                {suggestions.map((item, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.suggestionItem}
+                    onPress={() => selectSuggestion(item)}
+                  >
+                    <View style={styles.suggestionLeft}>
+                      <Text style={styles.suggestionSize}>{item.size}</Text>
+                      {item.altName && (
+                        <Text style={styles.suggestionAlt}>{item.altName}</Text>
+                      )}
+                    </View>
+                    <View style={styles.suggestionRight}>
+                      <Text style={styles.suggestionDiff}>
+                        {item.sizeDiff >= 0 ? '+' : ''}{item.sizeDiff}
+                      </Text>
+                      <Text style={styles.suggestionStock}>{item.stock} kg</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Category Shortcuts */}
+          <View style={styles.shortcutsRow}>
+            {['Local', 'HR', 'Apollo'].map(cat => (
+              <TouchableOpacity
+                key={cat}
+                style={styles.shortcutBtn}
+                onPress={() => setSizeInput(cat)}
+              >
+                <Text style={styles.shortcutText}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Basic Rate */}
@@ -328,7 +590,7 @@ export default function FilterScreen() {
               style={styles.input}
               value={basicRate}
               onChangeText={setBasicRate}
-              placeholder="e.g. 1200"
+              placeholder="e.g. 46.5"
               placeholderTextColor="#c0c0c0"
               keyboardType="numeric"
             />
@@ -338,7 +600,7 @@ export default function FilterScreen() {
           <View style={styles.calcCard}>
             <View style={styles.calcHeader}>
               <Ionicons name="calculator" size={18} color="#FA7B17" />
-              <Text style={styles.calcTitle}>Quick Rate Calculator</Text>
+              <Text style={styles.calcTitle}>Quick Calculator</Text>
             </View>
             <View style={styles.calcRow}>
               <View style={styles.calcInputWrap}>
@@ -347,7 +609,7 @@ export default function FilterScreen() {
                   style={styles.calcInput}
                   value={calcWeight}
                   onChangeText={setCalcWeight}
-                  placeholder="e.g. 500"
+                  placeholder="500"
                   placeholderTextColor="#c0c0c0"
                   keyboardType="numeric"
                 />
@@ -358,7 +620,7 @@ export default function FilterScreen() {
                   style={styles.calcInput}
                   value={calcRate || basicRate}
                   onChangeText={setCalcRate}
-                  placeholder={basicRate || 'e.g. 1200'}
+                  placeholder={basicRate || '46.5'}
                   placeholderTextColor="#c0c0c0"
                   keyboardType="numeric"
                 />
@@ -391,7 +653,7 @@ export default function FilterScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btn, styles.clearBtn]}
-              onPress={() => { setSizeInput(''); setResults([]); setSelected(new Set()); }}
+              onPress={() => { setSizeInput(''); setResults([]); setSelected(new Set()); setShowSuggestions(false); }}
             >
               <Ionicons name="trash-outline" size={18} color="#EA4335" />
               <Text style={[styles.btnText, { color: '#EA4335' }]}>Clear</Text>
@@ -438,9 +700,16 @@ export default function FilterScreen() {
                         <Ionicons name="checkmark" size={11} color="#fff" />
                       )}
                     </View>
-                    <Text style={styles.cardSizeText} numberOfLines={1}>
-                      {r.displaySize}
-                    </Text>
+                    <View style={styles.cardTitleWrap}>
+                      <Text style={styles.cardSizeText} numberOfLines={1}>
+                        {r.displaySize}
+                      </Text>
+                      {r.altName && (
+                        <Text style={styles.cardAltText} numberOfLines={1}>
+                          {r.altName}
+                        </Text>
+                      )}
+                    </View>
                     <TouchableOpacity
                       style={styles.speakerBtn}
                       onPress={() => speakHindi(r)}
@@ -491,6 +760,45 @@ export default function FilterScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Voice Input Modal */}
+      <Modal
+        visible={voiceModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setVoiceModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.voiceModal}>
+            <Text style={styles.voiceModalTitle}>Voice Search (Hindi)</Text>
+            <Text style={styles.voiceModalHint}>
+              Use your keyboard's voice input or type Hindi numbers
+            </Text>
+            <TextInput
+              style={styles.voiceInput}
+              value={voiceText}
+              onChangeText={setVoiceText}
+              placeholder="बहत्तर बहत्तर पच्चीस"
+              placeholderTextColor="#c0c0c0"
+              multiline
+            />
+            <View style={styles.voiceModalBtns}>
+              <TouchableOpacity
+                style={styles.voiceCancelBtn}
+                onPress={() => setVoiceModalVisible(false)}
+              >
+                <Text style={styles.voiceCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.voiceConfirmBtn}
+                onPress={processVoiceInput}
+              >
+                <Text style={styles.voiceConfirmText}>Convert & Search</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -520,15 +828,44 @@ const styles = StyleSheet.create({
   section: { marginBottom: 16 },
   label: { fontSize: 15, fontWeight: '600', color: '#202124', marginBottom: 6 },
   hint: { fontSize: 12, color: '#9aa0a6', marginBottom: 8 },
-  multilineInput: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0',
+  searchRow: { flexDirection: 'row', gap: 10 },
+  searchInput: {
+    flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0',
     borderRadius: 12, padding: 14, fontSize: 15, color: '#202124',
-    minHeight: 100,
+  },
+  voiceBtn: {
+    width: 50, backgroundColor: '#4285F4', borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
   },
   input: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0',
     borderRadius: 12, padding: 14, fontSize: 15, color: '#202124',
   },
+  shortcutsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  shortcutBtn: {
+    flex: 1, backgroundColor: '#E8F0FE', paddingVertical: 10, borderRadius: 10,
+    alignItems: 'center',
+  },
+  shortcutText: { fontSize: 13, fontWeight: '600', color: '#4285F4' },
+  suggestionsBox: {
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0',
+    borderRadius: 12, marginTop: 8, maxHeight: 300,
+  },
+  suggestionsTitle: {
+    fontSize: 12, fontWeight: '600', color: '#9aa0a6',
+    paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6,
+  },
+  suggestionItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderTopWidth: 1, borderTopColor: '#f0f0f0',
+  },
+  suggestionLeft: { flex: 1 },
+  suggestionSize: { fontSize: 14, fontWeight: '600', color: '#202124' },
+  suggestionAlt: { fontSize: 11, color: '#9aa0a6', marginTop: 2 },
+  suggestionRight: { alignItems: 'flex-end' },
+  suggestionDiff: { fontSize: 12, fontWeight: '600', color: '#34A853' },
+  suggestionStock: { fontSize: 11, color: '#5f6368' },
   buttonRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   btn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -561,7 +898,9 @@ const styles = StyleSheet.create({
     marginRight: 10, justifyContent: 'center', alignItems: 'center',
   },
   checkboxOn: { backgroundColor: '#4285F4', borderColor: '#4285F4' },
-  cardSizeText: { flex: 1, fontSize: 15, fontWeight: '700', color: '#202124', letterSpacing: 0.3 },
+  cardTitleWrap: { flex: 1 },
+  cardSizeText: { fontSize: 15, fontWeight: '700', color: '#202124', letterSpacing: 0.3 },
+  cardAltText: { fontSize: 11, color: '#9aa0a6', marginTop: 2 },
   speakerBtn: {
     width: 30, height: 30, borderRadius: 9,
     backgroundColor: '#E8F0FE',
@@ -605,4 +944,31 @@ const styles = StyleSheet.create({
   },
   calcResultLabel: { fontSize: 13, color: '#FA7B17', fontWeight: '600' },
   calcResultValue: { fontSize: 22, fontWeight: '800', color: '#FA7B17' },
+  // Voice Modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  voiceModal: {
+    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24,
+  },
+  voiceModalTitle: { fontSize: 20, fontWeight: '700', color: '#202124', marginBottom: 8 },
+  voiceModalHint: { fontSize: 13, color: '#5f6368', marginBottom: 16 },
+  voiceInput: {
+    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e0e0e0',
+    borderRadius: 12, padding: 16, fontSize: 18, color: '#202124',
+    minHeight: 80, textAlignVertical: 'top',
+  },
+  voiceModalBtns: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  voiceCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    borderWidth: 1, borderColor: '#e0e0e0', alignItems: 'center',
+  },
+  voiceCancelText: { fontSize: 15, fontWeight: '600', color: '#5f6368' },
+  voiceConfirmBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: '#4285F4', alignItems: 'center',
+  },
+  voiceConfirmText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
