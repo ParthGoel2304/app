@@ -323,21 +323,27 @@ export default function LayoutScreen() {
       return <View key={colIndex} style={styles.labelCell}><Text style={styles.labelText}>{cellText}</Text></View>;
     }
 
-    if (isRackCode(cellText)) {
-      const rackInfo = getRackInfo(cellText);
-      const bgColor = rackInfo ? getStockColor(rackInfo.stock) : '#E8E8E8';
+    // Treat all other cells as potential rack IDs (including "Others", "S1", etc.)
+    const entries = getRackInfo(cellText);
+    const totalStock = getTotalStock(entries);
+    const bgColor = entries.length > 0 ? getStockColor(totalStock) : '#E8E8E8';
+    const hasMultiple = entries.length > 1;
 
-      return (
-        <TouchableOpacity
-          key={colIndex}
-          style={[styles.rackCell, { backgroundColor: bgColor }]}
-          onPress={() => handleRackPress(cellText)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.rackCode}>{cellText}</Text>
-          {rackInfo && rackInfo.size && (
-            <Text style={styles.rackSize} numberOfLines={1}>
-              {rackInfo.size.length > 10 ? rackInfo.size.substring(0, 8) + '..' : rackInfo.size}
+    return (
+      <TouchableOpacity
+        key={colIndex}
+        style={[styles.rackCell, { backgroundColor: bgColor }]}
+        onPress={() => handleRackPress(cellText)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.rackCode}>{cellText}</Text>
+        {hasMultiple && (
+          <View style={styles.multiIndicator}>
+            <Text style={styles.multiIndicatorText}>{entries.length}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
             </Text>
           )}
         </TouchableOpacity>
