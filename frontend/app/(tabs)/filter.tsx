@@ -155,7 +155,15 @@ export default function FilterScreen() {
   const [dataAvailable, setDataAvailable] = useState(false);
   const [rowCount, setRowCount] = useState(0);
 
-  useFocusEffect(
+  const [calcWeight, setCalcWeight] = useState('');
+  const [calcRate, setCalcRate] = useState('');
+
+  // Auto-fill calc rate from basicRate
+  const calcTotal = (() => {
+    const w = parseFloat(calcWeight);
+    const r = parseFloat(calcRate || basicRate);
+    return !isNaN(w) && !isNaN(r) ? (w * r).toFixed(0) : null;
+  })();
     React.useCallback(() => {
       const store = getExcelStore();
       setDataAvailable(store !== null && store.data.length > 1);
