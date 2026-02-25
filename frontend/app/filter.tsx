@@ -89,7 +89,7 @@ export default function FilterScreen() {
            (target.w === 0 || candidate.w === 0 || checkDim(target.w, candidate.w));
   };
 
-  // Handle filter
+  // Handle filter with REAL Excel data
   const handleFilter = () => {
     if (!sizeInput.trim()) {
       Alert.alert('Error', 'Please enter at least one size');
@@ -102,31 +102,90 @@ export default function FilterScreen() {
 
     setLoading(true);
     
-    // Parse input sizes
-    const sizes = parseSizes(sizeInput);
-    const normalizedSizes = sizes.map(s => normalizeSize(s)).filter(s => s !== null);
-    
-    if (normalizedSizes.length === 0) {
-      Alert.alert('Error', 'No valid sizes found. Format: 50x40x6 or 50x40');
+    try {
+      // Get Excel data from params
+      const excelData = params.data ? JSON.parse(params.data as string) : [];
+      if (excelData.length === 0) {
+        Alert.alert('Error', 'No Excel data available');
+        setLoading(false);
+        return;
+      }
+
+      // Parse input sizes
+      const sizes = parseSizes(sizeInput);
+      const results: FilterResult[] = [];
+
+      // For each entered size, search in Excel
+      sizes.forEach(sizeStr => {
+        const normalized = normalizeSize(sizeStr);
+        if (!normalized) return;
+
+        const targetMm = convertToMm(normalized);
+
+        // Search through Excel rows (skip header row 0)
+        for (let i = 1; i < excelData.length; i++) {
+          const row = excelData[i];
+          
+          // Column E (index 4) = inch, Column F (index 5) = mm
+          const colE = (row[4] || '').toString().trim();
+          const colF = (row[5] || '').toString().trim();
+          
+          // Try matching with column F (mm) first
+          if (colF) {
+            const candidateF = normalizeSize(colF);
+            if (candidateF) {
+              const candidateMm = convertToMm(candidateF);
+              if (matchSize(targetMm, candidateMm)) {
+                // Match found! Extract data
+                const sizeDiff = (row[7] || '0').toString(); // Column H (index 7)
+                const stock = (row[14] || '0').toString(); // Column O (index 14)
+                
+                results.push({
+                  size: colF,
+                  sizeDiff: sizeDiff,
+                  stock: stock,
+                  adjustedRate: parseFloat(basicRate) + parseFloat(sizeDiff || '0'),
+                  rowIndex: i + 1
+                });
+                return; // Found match, move to next size
+              }
+            }
+          }
+
+          // Try matching with column E (inch)
+          if (colE) {
+            const candidateE = normalizeSize(colE);
+            if (candidateE) {
+              const candidateMm = convertToMm(candidateE);
+              if (matchSize(targetMm, candidateMm)) {
+                // Match found! Extract data
+                const sizeDiff = (row[7] || '0').toString(); // Column H (index 7)
+                const stock = (row[14] || '0').toString(); // Column O (index 14)
+                
+                results.push({
+                  size: colE,
+                  sizeDiff: sizeDiff,
+                  stock: stock,
+                  adjustedRate: parseFloat(basicRate) + parseFloat(sizeDiff || '0'),
+                  rowIndex: i + 1
+                });
+                return; // Found match, move to next size
+              }
+            }
+          }
+        }
+      });
+
+      if (results.length === 0) {
+        Alert.alert('No Matches', 'No matching sizes found in the Excel sheet');
+      }
+
+      setResults(results);
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to process data: ' + error.message);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // Convert to mm
-    const targetSizes = normalizedSizes.map(s => convertToMm(s!));
-    
-    // Mock data extraction (in real app, get from Excel data)
-    // For now, show matched results with sample data
-    const mockResults: FilterResult[] = targetSizes.map((size, idx) => ({
-      size: `${size.b}x${size.h}${size.w > 0 ? 'x' + size.w : ''}${size.t ? '(' + size.t + 'mm)' : ''}`,
-      sizeDiff: '150', // Mock: should come from column H
-      stock: '50', // Mock: should come from column O
-      adjustedRate: parseFloat(basicRate) + 150,
-      rowIndex: idx + 5
-    }));
-
-    setResults(mockResults);
-    setLoading(false);
   };
 
   // Hindi audio for size
