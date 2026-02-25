@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="home"
       screenOptions={{
         tabBarActiveTintColor: '#4285F4',
         tabBarInactiveTintColor: '#9aa0a6',

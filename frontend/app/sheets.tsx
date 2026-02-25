@@ -48,8 +48,10 @@ export default function SheetsScreen() {
       setFileId(file_id);
       setFileName(file_name);
       
+      // Add timestamp to force fresh data (bypass cache)
       const response = await axios.get(
-        `${BACKEND_URL}/api/drive/file/${file_id}/sheets?session_id=${session}`
+        `${BACKEND_URL}/api/drive/file/${file_id}/sheets?session_id=${session}&_t=${Date.now()}`,
+        { headers: { 'Cache-Control': 'no-cache' } }
       );
       
       setSheets(response.data.sheet_names);
