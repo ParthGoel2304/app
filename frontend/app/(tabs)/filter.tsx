@@ -240,8 +240,10 @@ export default function FilterScreen() {
       const newItems = toAdd.map(r => ({
         id: Date.now() + Math.random(),
         size: r.displaySize,
+        pcs: 0,  // User will enter manually
+        weight: 0,  // User will enter manually
+        rate: r.adjustedRate,
         diff: r.sizeDiff,
-        finalRate: r.adjustedRate,
         stock: r.stock,
       }));
       await AsyncStorage.setItem('parchi_items', JSON.stringify([...existing, ...newItems]));
