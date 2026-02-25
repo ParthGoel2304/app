@@ -293,15 +293,16 @@ export default function LayoutScreen() {
   };
 
   const isRackCode = (text: string): boolean => {
-    if (!text || text === 'Gap' || text === 'Others') return false;
+    if (!text || text === 'Gap') return false;
+    // Others and S1 are valid rack codes
+    if (text === 'Others' || text === 'S1') return true;
     return /^[A-Z]+\d+\.?\d*/.test(text.replace(/\(.*\)/g, '').trim());
   };
 
   const isLabel = (text: string): boolean => {
-    // Only filter actual zone labels, NOT rack IDs like "Others" or "S1"
-    // "Others" and "S1" are valid rack IDs for overflow zones
-    const labels = ['office side', 'gate side'];
-    return labels.some(l => text.toLowerCase() === l.toLowerCase());
+    // Only filter actual zone labels - strict match
+    const labels = ['Office Side', 'Gate Side'];
+    return labels.includes(text);
   };
 
   const handleRackPress = (rackCode: string) => {
