@@ -57,6 +57,16 @@ export default function DataScreen() {
       );
       
       setExcelData(response.data);
+
+      // Cache data in module store for the Filter tab
+      const fn = await AsyncStorage.getItem('selected_file_name');
+      setExcelStore({
+        data: response.data.data,
+        fileName: fn || '',
+        sheetName: response.data.sheet_name,
+        cellRange: response.data.cell_range,
+        loadedAt: Date.now(),
+      });
     } catch (error: any) {
       console.error('Load data error:', error);
       Alert.alert('Error', error.response?.data?.detail || 'Failed to load Excel data');
