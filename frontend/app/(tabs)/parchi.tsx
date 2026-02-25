@@ -784,6 +784,22 @@ const styles = StyleSheet.create({
     padding: 12, gap: 6,
   },
   addRowText: { fontSize: 13, color: '#4285F4', fontWeight: '600' },
+  addRowInput: {
+    flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8,
+  },
+  addRowTextInput: {
+    flex: 1, backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e0e0e0',
+    borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, fontSize: 14, color: '#202124',
+  },
+  addRowConfirm: {
+    backgroundColor: '#34A853', width: 36, height: 36, borderRadius: 8,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  addRowCancel: {
+    backgroundColor: '#fff', width: 36, height: 36, borderRadius: 8,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: '#EA4335',
+  },
   grandTotalCard: {
     backgroundColor: '#4285F4', borderRadius: 14, padding: 18,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
