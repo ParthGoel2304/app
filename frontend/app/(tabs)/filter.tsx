@@ -576,4 +576,27 @@ const styles = StyleSheet.create({
     paddingVertical: 16, marginTop: 8, gap: 8,
   },
   parchiBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  // Quick Rate Calculator
+  calcCard: {
+    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 16,
+    borderWidth: 1, borderColor: '#FEE0B0',
+    shadowColor: '#FA7B17', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+  },
+  calcHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
+  calcTitle: { fontSize: 14, fontWeight: '700', color: '#FA7B17' },
+  calcRow: { flexDirection: 'row', gap: 10 },
+  calcInputWrap: { flex: 1 },
+  calcLabel: { fontSize: 11, color: '#9aa0a6', fontWeight: '500', marginBottom: 5 },
+  calcInput: {
+    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e0e0e0',
+    borderRadius: 10, padding: 10, fontSize: 15, color: '#202124',
+  },
+  calcResult: {
+    marginTop: 12, backgroundColor: '#FEF0E6', borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 14,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  calcResultLabel: { fontSize: 13, color: '#FA7B17', fontWeight: '600' },
+  calcResultValue: { fontSize: 22, fontWeight: '800', color: '#FA7B17' },
 });
