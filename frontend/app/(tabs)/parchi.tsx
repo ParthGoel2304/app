@@ -698,7 +698,7 @@ export default function ParchiScreen() {
               <Ionicons name="logo-whatsapp" size={22} color="#fff" />
               <Text style={styles.shareBtnText}>WhatsApp</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.shareBtn, styles.pdfBtn]} onPress={generatePDF}>
+            <TouchableOpacity style={[styles.shareBtn, styles.pdfBtn]} onPress={promptPdfName}>
               <Ionicons name="document-text" size={22} color="#fff" />
               <Text style={styles.shareBtnText}>PDF</Text>
             </TouchableOpacity>
@@ -707,6 +707,43 @@ export default function ParchiScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+
+      {/* PDF Filename Modal */}
+      <Modal
+        visible={showPdfNameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPdfNameModal(false)}
+      >
+        <View style={styles.pdfModalOverlay}>
+          <View style={styles.pdfModal}>
+            <Text style={styles.pdfModalTitle}>Save PDF As</Text>
+            <TextInput
+              style={styles.pdfNameInput}
+              value={pdfFileName}
+              onChangeText={setPdfFileName}
+              placeholder="Enter file name"
+              placeholderTextColor="#c0c0c0"
+              autoFocus
+            />
+            <View style={styles.pdfModalBtns}>
+              <TouchableOpacity
+                style={styles.pdfCancelBtn}
+                onPress={() => setShowPdfNameModal(false)}
+              >
+                <Text style={styles.pdfCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.pdfSaveBtn}
+                onPress={generatePDF}
+              >
+                <Ionicons name="download" size={18} color="#fff" />
+                <Text style={styles.pdfSaveText}>Save PDF</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
