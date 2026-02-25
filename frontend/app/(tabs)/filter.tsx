@@ -540,9 +540,13 @@ export default function FilterScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Auto-suggestions */}
+            {/* Auto-suggestions - INLINE with max height */}
             {showSuggestions && suggestions.length > 0 && (
-              <View style={styles.suggestionsBox}>
+              <ScrollView 
+                style={styles.suggestionsBox}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+              >
                 <Text style={styles.suggestionsTitle}>
                   {suggestions[0].matchType === 'category' ? 'Category Items' : 'Suggestions'}
                 </Text>
@@ -566,7 +570,7 @@ export default function FilterScreen() {
                     </View>
                   </TouchableOpacity>
                 ))}
-              </View>
+              </ScrollView>
             )}
           </View>
 
