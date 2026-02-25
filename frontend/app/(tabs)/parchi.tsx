@@ -868,4 +868,29 @@ const styles = StyleSheet.create({
   },
   pdfBtn: { backgroundColor: '#EA4335' },
   shareBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  // PDF Name Modal
+  pdfModalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  pdfModal: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 24,
+    width: '100%', maxWidth: 360,
+  },
+  pdfModalTitle: { fontSize: 18, fontWeight: '700', color: '#202124', marginBottom: 16 },
+  pdfNameInput: {
+    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e0e0e0',
+    borderRadius: 12, padding: 14, fontSize: 15, color: '#202124',
+  },
+  pdfModalBtns: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  pdfCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    borderWidth: 1, borderColor: '#e0e0e0', alignItems: 'center',
+  },
+  pdfCancelText: { fontSize: 15, fontWeight: '600', color: '#5f6368' },
+  pdfSaveBtn: {
+    flex: 1, flexDirection: 'row', paddingVertical: 14, borderRadius: 12,
+    backgroundColor: '#EA4335', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  pdfSaveText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
