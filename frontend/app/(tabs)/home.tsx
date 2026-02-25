@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, ScrollView, Modal
+  ActivityIndicator, Alert, ScrollView, Modal, TextInput
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,60 +9,73 @@ import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  setExcelStore, getExcelStore, 
-  getFileRegistry, removeFromFileRegistry, ExcelFile 
+  getSheetLibrary, setSheetLibrary,
+  getActiveSheetId, setActiveSheetId, getActiveSheet,
+  removeSheetProfile, updateSheetProfile,
+  SheetProfile
 } from '../../utils/store';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [loadingFileId, setLoadingFileId] = useState<string | null>(null);
   
-  // File registry state
-  const [registeredFiles, setRegisteredFiles] = useState<ExcelFile[]>([]);
+  // Sheet library state
+  const [sheetLibrary, setLocalLibrary] = useState<SheetProfile[]>([]);
+  const [activeSheetId, setLocalActiveId] = useState<string | null>(null);
+  const [activeSheet, setLocalActiveSheet] = useState<SheetProfile | null>(null);
   
-  // Active file state
-  const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [activeFileName, setActiveFileName] = useState<string | null>(null);
-  const [activeSheet, setActiveSheet] = useState<string | null>(null);
-  const [activeCellRange, setActiveCellRange] = useState<string | null>(null);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  
-  // File options modal
-  const [selectedFile, setSelectedFile] = useState<ExcelFile | null>(null);
-  const [showFileOptions, setShowFileOptions] = useState(false);
+  // UI state
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [showOptions, setShowOptions] = useState(false);
+  const [selectedSheet, setSelectedSheet] = useState<SheetProfile | null>(null);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameText, setRenameText] = useState('');
 
   useFocusEffect(
     React.useCallback(() => {
-      loadSavedConfig();
+      loadLibrary();
     }, [])
   );
 
-  const loadSavedConfig = async () => {
-    // Load file registry from store
-    const files = getFileRegistry();
-    setRegisteredFiles(files);
-    
-    // Load active file info from AsyncStorage
-    const fileId = await AsyncStorage.getItem('selected_file_id');
-    const fn = await AsyncStorage.getItem('selected_file_name');
-    const sn = await AsyncStorage.getItem('selected_sheet');
-    const cr = await AsyncStorage.getItem('cell_range');
-    
-    setActiveFileId(fileId);
-    setActiveFileName(fn);
-    setActiveSheet(sn);
-    setActiveCellRange(cr);
-    setDataLoaded(getExcelStore() !== null);
+  const loadLibrary = async () => {
+    try {
+      // Load from AsyncStorage
+      const stored = await AsyncStorage.getItem('sheet_library');
+      const storedActiveId = await AsyncStorage.getItem('active_sheet_id');
+      
+      if (stored) {
+        const library = JSON.parse(stored);
+        setSheetLibrary(library);  // Update global store
+        setLocalLibrary(library);
+      } else {
+        setLocalLibrary(getSheetLibrary());
+      }
+      
+      if (storedActiveId) {
+        setActiveSheetId(storedActiveId);  // Update global store
+        setLocalActiveId(storedActiveId);
+      } else {
+        setLocalActiveId(getActiveSheetId());
+      }
+      
+      setLocalActiveSheet(getActiveSheet());
+    } catch (error) {
+      console.error('Failed to load library:', error);
+    }
   };
 
-  const handleLoadFileData = async (file: ExcelFile) => {
+  const handleSetActive = async (sheet: SheetProfile) => {
+    setActiveSheetId(sheet.id);
+    setLocalActiveId(sheet.id);
+    setLocalActiveSheet(sheet);
+    await AsyncStorage.setItem('active_sheet_id', sheet.id);
+  };
+
+  const handleRefreshSheet = async (sheet: SheetProfile) => {
+    setRefreshingId(sheet.id);
+    
     try {
-      setLoading(true);
-      setLoadingFileId(file.fileId);
-      
       const sessionId = await AsyncStorage.getItem('session_id');
       if (!sessionId) {
         Alert.alert('Session Expired', 'Please login again');
@@ -70,99 +83,100 @@ export default function HomeScreen() {
         return;
       }
 
-      // For layout files, we need to pick a sheet first
-      // For stock files, load the Stock sheet
-      const sheetToLoad = file.sheetNames.find(s => 
-        s.toLowerCase() === 'stock' || s.toLowerCase().includes('stock')
-      ) || file.sheetNames[0];
-
-      // Save selection to AsyncStorage
-      await AsyncStorage.setItem('selected_file_id', file.fileId);
-      await AsyncStorage.setItem('selected_file_name', file.fileName);
-      await AsyncStorage.setItem('selected_sheet', sheetToLoad);
-      await AsyncStorage.setItem('cell_range', 'A1:Z500');
-
       const response = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${sessionId}&file_id=${file.fileId}&sheet_name=${encodeURIComponent(sheetToLoad)}&cell_range=A1:Z500`
+        `${BACKEND_URL}/api/excel/read?session_id=${sessionId}&file_id=${sheet.fileId}&sheet_name=${encodeURIComponent(sheet.sheetName)}&cell_range=${encodeURIComponent(sheet.range)}`
       );
 
-      setExcelStore({
+      // Update the sheet profile with new data
+      updateSheetProfile(sheet.id, {
         data: response.data.data,
-        fileName: file.fileName,
-        fileId: file.fileId,
-        sheetName: sheetToLoad,
-        cellRange: 'A1:Z500',
-        loadedAt: Date.now()
+        rowCount: response.data.row_count,
+        colCount: response.data.col_count,
+        lastRefreshed: Date.now(),
       });
 
-      // Update local state
-      setActiveFileId(file.fileId);
-      setActiveFileName(file.fileName);
-      setActiveSheet(sheetToLoad);
-      setActiveCellRange('A1:Z500');
-      setDataLoaded(true);
+      // Persist
+      const library = getSheetLibrary();
+      await AsyncStorage.setItem('sheet_library', JSON.stringify(library));
+      setLocalLibrary([...library]);
+      
+      if (sheet.id === activeSheetId) {
+        setLocalActiveSheet(getActiveSheet());
+      }
 
-      // Save to recent
-      await saveToRecent(file.fileName, file.fileId, sheetToLoad, 'A1:Z500');
-
-      Alert.alert(
-        'Data Loaded!',
-        `Loaded ${response.data.row_count} rows from "${sheetToLoad}"`,
-        [
-          { text: 'Open Filter', onPress: () => router.navigate('/(tabs)/filter' as any) },
-          { text: 'OK' }
-        ]
-      );
-    } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.detail || 'Failed to load data');
+      Alert.alert('Refreshed!', `Data updated from Google Drive`);
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to refresh data');
     } finally {
-      setLoading(false);
-      setLoadingFileId(null);
+      setRefreshingId(null);
     }
   };
 
-  const handleRemoveFile = (file: ExcelFile) => {
+  const handleDeleteSheet = async (sheet: SheetProfile) => {
     Alert.alert(
-      'Remove File',
-      `Remove "${file.fileName}" from the registry?`,
+      'Delete Sheet',
+      `Remove "${sheet.displayName}" from library?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
+        {
+          text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            removeFromFileRegistry(file.fileId);
-            setRegisteredFiles(getFileRegistry());
-            setShowFileOptions(false);
-            setSelectedFile(null);
+          onPress: async () => {
+            removeSheetProfile(sheet.id);
+            const library = getSheetLibrary();
+            await AsyncStorage.setItem('sheet_library', JSON.stringify(library));
+            setLocalLibrary([...library]);
             
-            // If this was the active file, clear active state
-            if (file.fileId === activeFileId) {
-              setActiveFileId(null);
-              setActiveFileName(null);
-              setDataLoaded(false);
+            if (sheet.id === activeSheetId) {
+              setLocalActiveId(null);
+              setLocalActiveSheet(null);
+              await AsyncStorage.removeItem('active_sheet_id');
             }
+            
+            setShowOptions(false);
+            setSelectedSheet(null);
           }
         }
       ]
     );
   };
 
-  const saveToRecent = async (fn: string, fileId: string, sn: string, cr: string) => {
-    try {
-      const stored = await AsyncStorage.getItem('recent_files');
-      const recent = stored ? JSON.parse(stored) : [];
-      const entry = { fileId, fileName: fn, sheetName: sn, cellRange: cr, lastOpened: Date.now() };
-      const updated = [entry, ...recent.filter((r: any) => r.fileId !== fileId)].slice(0, 10);
-      await AsyncStorage.setItem('recent_files', JSON.stringify(updated));
-    } catch {}
+  const handleRenameSheet = async () => {
+    if (!selectedSheet || !renameText.trim()) return;
+    
+    updateSheetProfile(selectedSheet.id, { displayName: renameText.trim() });
+    const library = getSheetLibrary();
+    await AsyncStorage.setItem('sheet_library', JSON.stringify(library));
+    setLocalLibrary([...library]);
+    
+    if (selectedSheet.id === activeSheetId) {
+      setLocalActiveSheet(getActiveSheet());
+    }
+    
+    setShowRenameModal(false);
+    setShowOptions(false);
+    setSelectedSheet(null);
+    setRenameText('');
+  };
+
+  const openOptions = (sheet: SheetProfile) => {
+    setSelectedSheet(sheet);
+    setShowOptions(true);
+  };
+
+  const openRename = () => {
+    if (selectedSheet) {
+      setRenameText(selectedSheet.displayName);
+      setShowRenameModal(true);
+    }
   };
 
   const handleDisconnect = () => {
     Alert.alert('Disconnect', 'Disconnect from Google Drive?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Disconnect', style: 'destructive',
+        text: 'Disconnect',
+        style: 'destructive',
         onPress: async () => {
           await AsyncStorage.clear();
           router.replace('/');
@@ -171,12 +185,13 @@ export default function HomeScreen() {
     ]);
   };
 
-  const openFileOptions = (file: ExcelFile) => {
-    setSelectedFile(file);
-    setShowFileOptions(true);
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'layout': return { bg: '#F3E5F5', text: '#9C27B0' };
+      case 'stock': return { bg: '#E6F4EA', text: '#34A853' };
+      default: return { bg: '#E8F0FE', text: '#4285F4' };
+    }
   };
-
-  const isActiveFile = (fileId: string) => fileId === activeFileId && dataLoaded;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -193,102 +208,125 @@ export default function HomeScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* File Registry Section */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Ionicons name="folder" size={20} color="#4285F4" />
-            <Text style={styles.sectionTitle}>My Files</Text>
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{registeredFiles.length}</Text>
+        {/* Active Sheet Card */}
+        {activeSheet ? (
+          <View style={styles.activeCard}>
+            <View style={styles.activeCardHeader}>
+              <Ionicons name="checkmark-circle" size={20} color="#34A853" />
+              <Text style={styles.activeLabel}>Active Sheet</Text>
+            </View>
+            <Text style={styles.activeName}>{activeSheet.displayName}</Text>
+            <Text style={styles.activeMeta}>
+              {activeSheet.rowCount} rows • Range: {activeSheet.range}
+            </Text>
+            <View style={styles.activeFooter}>
+              <View style={[styles.typeBadge, { backgroundColor: getTypeColor(activeSheet.sheetType).bg }]}>
+                <Text style={[styles.typeBadgeText, { color: getTypeColor(activeSheet.sheetType).text }]}>
+                  {activeSheet.sheetType.toUpperCase()}
+                </Text>
+              </View>
+              <Text style={styles.refreshedText}>
+                Refreshed {new Date(activeSheet.lastRefreshed).toLocaleDateString()}
+              </Text>
             </View>
           </View>
-          <TouchableOpacity 
-            style={styles.addFileBtn}
-            onPress={() => router.push('/files' as any)}
-          >
-            <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.addFileBtnText}>Add File</Text>
-          </TouchableOpacity>
+        ) : (
+          <View style={styles.noActiveCard}>
+            <Ionicons name="document-outline" size={32} color="#9aa0a6" />
+            <Text style={styles.noActiveText}>No Active Sheet</Text>
+            <Text style={styles.noActiveSub}>
+              Add a file and save a sheet to get started
+            </Text>
+          </View>
+        )}
+
+        {/* Add File Button */}
+        <TouchableOpacity
+          style={styles.addFileBtn}
+          onPress={() => router.push('/files' as any)}
+        >
+          <Ionicons name="add-circle" size={22} color="#fff" />
+          <Text style={styles.addFileBtnText}>Add File from Drive</Text>
+        </TouchableOpacity>
+
+        {/* Saved Sheets Section */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="library" size={18} color="#5f6368" />
+            <Text style={styles.sectionTitle}>Saved Sheets</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{sheetLibrary.length}</Text>
+            </View>
+          </View>
         </View>
 
-        {/* File List */}
-        {registeredFiles.length === 0 ? (
+        {sheetLibrary.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="document-outline" size={48} color="#d0d0d0" />
-            <Text style={styles.emptyStateTitle}>No Files Added</Text>
-            <Text style={styles.emptyStateSub}>
-              Tap "Add File" to load Excel files from Google Drive
+            <Ionicons name="folder-open-outline" size={40} color="#d0d0d0" />
+            <Text style={styles.emptyTitle}>No Saved Sheets</Text>
+            <Text style={styles.emptySub}>
+              Load data from a file and tap "Save to Library"
             </Text>
           </View>
         ) : (
-          <View style={styles.fileList}>
-            {registeredFiles.map((file, idx) => (
-              <TouchableOpacity
-                key={file.fileId}
-                style={[
-                  styles.fileCard,
-                  isActiveFile(file.fileId) && styles.fileCardActive
-                ]}
-                onPress={() => handleLoadFileData(file)}
-                onLongPress={() => openFileOptions(file)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.fileIcon}>
-                  <Ionicons 
-                    name={file.hasLayoutSheets ? 'grid' : 'document'} 
-                    size={24} 
-                    color={file.hasLayoutSheets ? '#9C27B0' : '#34A853'} 
-                  />
-                </View>
-                
-                <View style={styles.fileInfo}>
-                  <Text style={styles.fileName} numberOfLines={1}>
-                    {file.fileName}
-                  </Text>
-                  <View style={styles.fileMetaRow}>
-                    <View style={[
-                      styles.fileTypeBadge,
-                      { backgroundColor: file.fileType === 'stock' ? '#E6F4EA' : file.fileType === 'layout' ? '#F3E5F5' : '#E8F0FE' }
-                    ]}>
-                      <Text style={[
-                        styles.fileTypeBadgeText,
-                        { color: file.fileType === 'stock' ? '#34A853' : file.fileType === 'layout' ? '#9C27B0' : '#4285F4' }
-                      ]}>
-                        {file.fileType.toUpperCase()}
+          <View style={styles.sheetList}>
+            {sheetLibrary.map((sheet) => {
+              const isActive = sheet.id === activeSheetId;
+              const typeColor = getTypeColor(sheet.sheetType);
+              
+              return (
+                <TouchableOpacity
+                  key={sheet.id}
+                  style={[styles.sheetCard, isActive && styles.sheetCardActive]}
+                  onPress={() => handleSetActive(sheet)}
+                  onLongPress={() => openOptions(sheet)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.sheetCardLeft}>
+                    {isActive ? (
+                      <Ionicons name="checkmark-circle" size={20} color="#34A853" />
+                    ) : (
+                      <Ionicons name="document" size={20} color="#9aa0a6" />
+                    )}
+                  </View>
+                  
+                  <View style={styles.sheetCardContent}>
+                    <Text style={[styles.sheetName, isActive && styles.sheetNameActive]} numberOfLines={1}>
+                      {sheet.displayName}
+                    </Text>
+                    <View style={styles.sheetMeta}>
+                      <View style={[styles.typeBadgeSmall, { backgroundColor: typeColor.bg }]}>
+                        <Text style={[styles.typeBadgeSmallText, { color: typeColor.text }]}>
+                          {sheet.sheetType}
+                        </Text>
+                      </View>
+                      <Text style={styles.sheetMetaText}>
+                        {sheet.rowCount} rows
                       </Text>
                     </View>
-                    <Text style={styles.fileSheetsCount}>
-                      {file.sheetNames.length} sheets
-                    </Text>
                   </View>
-                </View>
 
-                <View style={styles.fileActions}>
-                  {loadingFileId === file.fileId ? (
-                    <ActivityIndicator size="small" color="#4285F4" />
-                  ) : isActiveFile(file.fileId) ? (
-                    <View style={styles.activeBadge}>
-                      <Ionicons name="checkmark-circle" size={16} color="#34A853" />
-                      <Text style={styles.activeBadgeText}>Active</Text>
-                    </View>
-                  ) : (
-                    <TouchableOpacity 
-                      style={styles.loadBtn}
-                      onPress={() => handleLoadFileData(file)}
-                    >
-                      <Ionicons name="download-outline" size={18} color="#4285F4" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <TouchableOpacity
+                    style={styles.refreshBtn}
+                    onPress={() => handleRefreshSheet(sheet)}
+                    disabled={refreshingId === sheet.id}
+                  >
+                    {refreshingId === sheet.id ? (
+                      <ActivityIndicator size="small" color="#4285F4" />
+                    ) : (
+                      <Ionicons name="refresh" size={18} color="#4285F4" />
+                    )}
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
         {/* Quick Actions */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="flash" size={20} color="#FA7B17" />
+            <Ionicons name="flash" size={18} color="#FA7B17" />
             <Text style={styles.sectionTitle}>Quick Actions</Text>
           </View>
         </View>
@@ -297,15 +335,14 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.navigate('/(tabs)/filter' as any)}
-            disabled={!dataLoaded}
+            disabled={!activeSheet || !activeSheet.data}
           >
-            <View style={[styles.actionIcon, { backgroundColor: dataLoaded ? '#FEF0E6' : '#f5f5f5' }]}>
-              <Ionicons name="funnel" size={28} color={dataLoaded ? '#FA7B17' : '#c0c0c0'} />
+            <View style={[styles.actionIcon, { backgroundColor: activeSheet?.data ? '#FEF0E6' : '#f5f5f5' }]}>
+              <Ionicons name="funnel" size={26} color={activeSheet?.data ? '#FA7B17' : '#c0c0c0'} />
             </View>
-            <Text style={[styles.actionTitle, !dataLoaded && styles.actionTitleDisabled]}>
+            <Text style={[styles.actionTitle, !activeSheet?.data && styles.actionTitleDisabled]}>
               Filter
             </Text>
-            <Text style={styles.actionSub}>Search sizes</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -313,24 +350,22 @@ export default function HomeScreen() {
             onPress={() => router.navigate('/(tabs)/parchi' as any)}
           >
             <View style={[styles.actionIcon, { backgroundColor: '#F0E6FE' }]}>
-              <Ionicons name="document-text" size={28} color="#9C27B0" />
+              <Ionicons name="document-text" size={26} color="#9C27B0" />
             </View>
             <Text style={styles.actionTitle}>Parchi</Text>
-            <Text style={styles.actionSub}>Quotations</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.navigate('/(tabs)/inventory' as any)}
-            disabled={!dataLoaded}
+            disabled={!activeSheet || !activeSheet.data}
           >
-            <View style={[styles.actionIcon, { backgroundColor: dataLoaded ? '#E8F0FE' : '#f5f5f5' }]}>
-              <Ionicons name="cube" size={28} color={dataLoaded ? '#4285F4' : '#c0c0c0'} />
+            <View style={[styles.actionIcon, { backgroundColor: activeSheet?.data ? '#E8F0FE' : '#f5f5f5' }]}>
+              <Ionicons name="cube" size={26} color={activeSheet?.data ? '#4285F4' : '#c0c0c0'} />
             </View>
-            <Text style={[styles.actionTitle, !dataLoaded && styles.actionTitleDisabled]}>
+            <Text style={[styles.actionTitle, !activeSheet?.data && styles.actionTitleDisabled]}>
               Inventory
             </Text>
-            <Text style={styles.actionSub}>Stock list</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -338,74 +373,97 @@ export default function HomeScreen() {
             onPress={() => router.navigate('/(tabs)/layout' as any)}
           >
             <View style={[styles.actionIcon, { backgroundColor: '#E6F4EA' }]}>
-              <Ionicons name="grid" size={28} color="#34A853" />
+              <Ionicons name="grid" size={26} color="#34A853" />
             </View>
             <Text style={styles.actionTitle}>Layout</Text>
-            <Text style={styles.actionSub}>Warehouse view</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Active File Info */}
-        {dataLoaded && activeFileName && (
-          <View style={styles.activeFileCard}>
-            <View style={styles.activeFileHeader}>
-              <Ionicons name="checkmark-circle" size={18} color="#34A853" />
-              <Text style={styles.activeFileLabel}>Currently Active</Text>
-            </View>
-            <Text style={styles.activeFileName}>{activeFileName}</Text>
-            <Text style={styles.activeFileMeta}>
-              Sheet: {activeSheet} • Range: {activeCellRange}
-            </Text>
-          </View>
-        )}
       </ScrollView>
 
-      {/* File Options Modal */}
+      {/* Sheet Options Modal */}
       <Modal
-        visible={showFileOptions}
+        visible={showOptions}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowFileOptions(false)}
+        onRequestClose={() => setShowOptions(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowFileOptions(false)}
+          onPress={() => setShowOptions(false)}
         >
           <View style={styles.optionsModal}>
-            {selectedFile && (
+            {selectedSheet && (
               <>
-                <Text style={styles.optionsTitle}>{selectedFile.fileName}</Text>
-                
-                <TouchableOpacity
-                  style={styles.optionItem}
-                  onPress={() => {
-                    setShowFileOptions(false);
-                    handleLoadFileData(selectedFile);
-                  }}
-                >
-                  <Ionicons name="download-outline" size={22} color="#4285F4" />
-                  <Text style={styles.optionText}>Load Data</Text>
+                <Text style={styles.optionsTitle} numberOfLines={1}>
+                  {selectedSheet.displayName}
+                </Text>
+
+                <TouchableOpacity style={styles.optionItem} onPress={() => handleSetActive(selectedSheet)}>
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#34A853" />
+                  <Text style={styles.optionText}>Set as Active</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.optionItem}
-                  onPress={() => handleRemoveFile(selectedFile)}
-                >
+                <TouchableOpacity style={styles.optionItem} onPress={() => handleRefreshSheet(selectedSheet)}>
+                  <Ionicons name="refresh" size={22} color="#4285F4" />
+                  <Text style={styles.optionText}>Refresh Data</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.optionItem} onPress={openRename}>
+                  <Ionicons name="pencil" size={22} color="#FA7B17" />
+                  <Text style={styles.optionText}>Rename</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.optionItem} onPress={() => handleDeleteSheet(selectedSheet)}>
                   <Ionicons name="trash-outline" size={22} color="#EA4335" />
-                  <Text style={[styles.optionText, { color: '#EA4335' }]}>Remove File</Text>
+                  <Text style={[styles.optionText, { color: '#EA4335' }]}>Delete</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.optionCancelBtn}
-                  onPress={() => setShowFileOptions(false)}
-                >
-                  <Text style={styles.optionCancelText}>Cancel</Text>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowOptions(false)}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Rename Modal */}
+      <Modal
+        visible={showRenameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRenameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.renameModal}>
+            <Text style={styles.renameTitle}>Rename Sheet</Text>
+            <TextInput
+              style={styles.renameInput}
+              value={renameText}
+              onChangeText={setRenameText}
+              placeholder="Enter new name"
+              autoFocus
+            />
+            <View style={styles.renameBtns}>
+              <TouchableOpacity
+                style={styles.renameCancelBtn}
+                onPress={() => {
+                  setShowRenameModal(false);
+                  setRenameText('');
+                }}
+              >
+                <Text style={styles.renameCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.renameSaveBtn}
+                onPress={handleRenameSheet}
+              >
+                <Text style={styles.renameSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -422,79 +480,87 @@ const styles = StyleSheet.create({
   headerBtns: { flexDirection: 'row', gap: 8 },
   headerBtn: { padding: 6 },
   content: { padding: 16 },
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 12, marginTop: 8,
+  
+  // Active Sheet Card
+  activeCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16,
+    borderWidth: 2, borderColor: '#34A853',
   },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#202124' },
-  countBadge: {
-    backgroundColor: '#E8F0FE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10,
+  activeCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  activeLabel: { fontSize: 12, color: '#34A853', fontWeight: '600' },
+  activeName: { fontSize: 17, fontWeight: '700', color: '#202124', marginBottom: 4 },
+  activeMeta: { fontSize: 13, color: '#5f6368', marginBottom: 10 },
+  activeFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  refreshedText: { fontSize: 11, color: '#9aa0a6' },
+  
+  noActiveCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 24, marginBottom: 16,
+    alignItems: 'center', borderWidth: 2, borderColor: '#e8e8e8', borderStyle: 'dashed',
   },
-  countBadgeText: { fontSize: 12, color: '#4285F4', fontWeight: '600' },
+  noActiveText: { fontSize: 15, fontWeight: '600', color: '#5f6368', marginTop: 10 },
+  noActiveSub: { fontSize: 12, color: '#9aa0a6', textAlign: 'center', marginTop: 4 },
+  
+  // Add File Button
   addFileBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#4285F4', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#4285F4', paddingVertical: 14, borderRadius: 12, marginBottom: 20,
   },
-  addFileBtnText: { fontSize: 13, color: '#fff', fontWeight: '600' },
+  addFileBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  
+  // Section Header
+  sectionHeader: { marginBottom: 12 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#202124' },
+  countBadge: { backgroundColor: '#E8F0FE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  countBadgeText: { fontSize: 12, color: '#4285F4', fontWeight: '600' },
+  
+  // Empty State
   emptyState: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 32, alignItems: 'center',
-    borderWidth: 2, borderColor: '#e8e8e8', borderStyle: 'dashed',
+    backgroundColor: '#fff', borderRadius: 14, padding: 24, alignItems: 'center',
+    marginBottom: 20,
   },
-  emptyStateTitle: { fontSize: 16, fontWeight: '600', color: '#5f6368', marginTop: 12 },
-  emptyStateSub: { fontSize: 13, color: '#9aa0a6', textAlign: 'center', marginTop: 6 },
-  fileList: { gap: 10, marginBottom: 16 },
-  fileCard: {
+  emptyTitle: { fontSize: 14, fontWeight: '600', color: '#5f6368', marginTop: 10 },
+  emptySub: { fontSize: 12, color: '#9aa0a6', textAlign: 'center', marginTop: 4 },
+  
+  // Sheet List
+  sheetList: { gap: 8, marginBottom: 20 },
+  sheetCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
+    backgroundColor: '#fff', borderRadius: 12, padding: 12,
     borderWidth: 1, borderColor: '#e8e8e8',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
-  fileCardActive: { borderColor: '#34A853', backgroundColor: '#FAFFF9' },
-  fileIcon: {
-    width: 48, height: 48, borderRadius: 12, backgroundColor: '#f8f9fa',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  fileInfo: { flex: 1 },
-  fileName: { fontSize: 15, fontWeight: '600', color: '#202124', marginBottom: 4 },
-  fileMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fileTypeBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  fileTypeBadgeText: { fontSize: 10, fontWeight: '700' },
-  fileSheetsCount: { fontSize: 11, color: '#9aa0a6' },
-  fileActions: { marginLeft: 8 },
-  loadBtn: {
+  sheetCardActive: { borderColor: '#34A853', backgroundColor: '#FAFFF9' },
+  sheetCardLeft: { marginRight: 12 },
+  sheetCardContent: { flex: 1 },
+  sheetName: { fontSize: 14, fontWeight: '600', color: '#202124', marginBottom: 4 },
+  sheetNameActive: { color: '#34A853' },
+  sheetMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sheetMetaText: { fontSize: 11, color: '#9aa0a6' },
+  refreshBtn: {
     width: 36, height: 36, borderRadius: 10, backgroundColor: '#E8F0FE',
-    justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center', marginLeft: 8,
   },
-  activeBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#E6F4EA', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
-  },
-  activeBadgeText: { fontSize: 11, color: '#34A853', fontWeight: '600' },
+  
+  // Type Badge
+  typeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  typeBadgeText: { fontSize: 11, fontWeight: '700' },
+  typeBadgeSmall: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  typeBadgeSmallText: { fontSize: 9, fontWeight: '600', textTransform: 'uppercase' },
+  
+  // Action Grid
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   actionCard: {
-    flex: 1, minWidth: '44%', backgroundColor: '#fff', borderRadius: 16,
-    padding: 16, alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-    borderWidth: 1, borderColor: '#e8e8e8',
+    flex: 1, minWidth: '44%', backgroundColor: '#fff', borderRadius: 14,
+    padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#e8e8e8',
   },
   actionIcon: {
-    width: 56, height: 56, borderRadius: 16,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 10,
+    width: 50, height: 50, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
   },
-  actionTitle: { fontSize: 14, fontWeight: '600', color: '#202124', marginBottom: 2 },
+  actionTitle: { fontSize: 13, fontWeight: '600', color: '#202124' },
   actionTitleDisabled: { color: '#c0c0c0' },
-  actionSub: { fontSize: 11, color: '#9aa0a6', textAlign: 'center' },
-  activeFileCard: {
-    backgroundColor: '#E6F4EA', borderRadius: 14, padding: 14, marginTop: 20,
-    borderWidth: 1, borderColor: '#34A853',
-  },
-  activeFileHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  activeFileLabel: { fontSize: 12, color: '#34A853', fontWeight: '600' },
-  activeFileName: { fontSize: 15, fontWeight: '700', color: '#202124', marginBottom: 4 },
-  activeFileMeta: { fontSize: 12, color: '#5f6368' },
+  
+  // Modals
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', alignItems: 'center', padding: 24,
@@ -508,9 +574,30 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0',
   },
   optionText: { fontSize: 15, color: '#202124', fontWeight: '500' },
-  optionCancelBtn: {
+  cancelBtn: {
     marginTop: 12, paddingVertical: 14, alignItems: 'center',
     backgroundColor: '#f8f9fa', borderRadius: 12,
   },
-  optionCancelText: { fontSize: 15, color: '#5f6368', fontWeight: '600' },
+  cancelBtnText: { fontSize: 15, color: '#5f6368', fontWeight: '600' },
+  
+  // Rename Modal
+  renameModal: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 320,
+  },
+  renameTitle: { fontSize: 18, fontWeight: '700', color: '#202124', marginBottom: 16 },
+  renameInput: {
+    borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 12,
+    padding: 14, fontSize: 16, color: '#202124', marginBottom: 16,
+  },
+  renameBtns: { flexDirection: 'row', gap: 12 },
+  renameCancelBtn: {
+    flex: 1, paddingVertical: 14, alignItems: 'center',
+    borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 12,
+  },
+  renameCancelText: { fontSize: 15, color: '#5f6368', fontWeight: '600' },
+  renameSaveBtn: {
+    flex: 1, paddingVertical: 14, alignItems: 'center',
+    backgroundColor: '#4285F4', borderRadius: 12,
+  },
+  renameSaveText: { fontSize: 15, color: '#fff', fontWeight: '600' },
 });
