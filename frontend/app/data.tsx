@@ -111,6 +111,20 @@ export default function DataScreen() {
             {excelData?.row_count} rows × {excelData?.col_count} cols
           </Text>
         </View>
+        <TouchableOpacity 
+          style={styles.filterButton}
+          onPress={() => router.push({
+            pathname: '/filter',
+            params: {
+              data: JSON.stringify(excelData?.data || []),
+              sheetName: excelData?.sheet_name,
+              fileName: fileName
+            }
+          })}
+        >
+          <Ionicons name="funnel" size={16} color="#4285F4" />
+          <Text style={styles.filterButtonText}>Filter</Text>
+        </TouchableOpacity>
       </View>
       
       <ScrollView
