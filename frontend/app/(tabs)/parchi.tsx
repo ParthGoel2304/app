@@ -278,7 +278,20 @@ export default function ParchiScreen() {
     }
   };
 
+  // Show PDF name modal before generating
+  const promptPdfName = () => {
+    // Default name: Date + Party + Time
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-IN').replace(/\//g, '-');
+    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }).replace(/:/g, '');
+    const defaultName = `${companyName || 'Parchi'}_${dateStr}_${timeStr}`;
+    setPdfFileName(defaultName);
+    setShowPdfNameModal(true);
+  };
+
   const generatePDF = async () => {
+    setShowPdfNameModal(false);
+    
     const html = `
       <!DOCTYPE html>
       <html>
