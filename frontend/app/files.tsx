@@ -45,8 +45,10 @@ export default function FilesScreen() {
       
       setSessionId(session);
       
+      // Add timestamp to force fresh data (bypass cache)
       const response = await axios.get(
-        `${BACKEND_URL}/api/drive/files?session_id=${session}`
+        `${BACKEND_URL}/api/drive/files?session_id=${session}&_t=${Date.now()}`,
+        { headers: { 'Cache-Control': 'no-cache' } }
       );
       
       setFiles(response.data.files);
