@@ -35,6 +35,28 @@ export default function WelcomeScreen() {
     }
   };
 
+  const checkConnectionStatus = async (sessionId: string, attempts = 0): Promise<boolean> => {
+    try {
+      const statusResponse = await axios.get(
+        `${BACKEND_URL}/api/drive/status?session_id=${sessionId}`
+      );
+      
+      if (statusResponse.data.connected) {
+        return true;
+      }
+      
+      // Retry up to 5 times with 2 second intervals
+      if (attempts < 5) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return checkConnectionStatus(sessionId, attempts + 1);
+      }
+      
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const handleConnectDrive = async () => {
     try {
       setLoading(true);
@@ -54,33 +76,55 @@ export default function WelcomeScreen() {
       const authUrl = oauthResponse.data.authorization_url;
       
       // Open browser for OAuth
-      const result = await WebBrowser.openBrowserAsync(authUrl);
-      
-      if (result.type === 'cancel' || result.type === 'dismiss') {
-        Alert.alert('Cancelled', 'Please complete the authentication to continue');
-        setLoading(false);
-        return;
-      }
-      
-      // Wait a bit for callback to process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Check connection status
-      const statusResponse = await axios.get(
-        `${BACKEND_URL}/api/drive/status?session_id=${sessionId}`
+      Alert.alert(
+        'Authenticate with Google',
+        'You will be redirected to Google to sign in. After signing in and granting permissions, come back to this app and tap "I\'ve Connected" button.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
+          {
+            text: 'Continue',
+            onPress: async () => {
+              await WebBrowser.openBrowserAsync(authUrl);
+              // Don't set loading to false - keep the "I've Connected" button visible
+            }
+          }
+        ]
       );
-      
-      if (statusResponse.data.connected) {
-        Alert.alert('Success', 'Google Drive connected successfully!');
-        router.replace('/files');
-      } else {
-        Alert.alert('Error', 'Failed to connect. Please try again.');
-      }
       
     } catch (error: any) {
       console.error('Connection error:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to connect to Google Drive');
-    } finally {
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to initiate Google Drive connection');
+      setLoading(false);
+    }
+  };
+
+  const handleCheckConnection = async () => {
+    try {
+      const sessionId = await AsyncStorage.getItem('session_id');
+      if (!sessionId) {
+        Alert.alert('Error', 'No session found. Please try connecting again.');
+        setLoading(false);
+        return;
+      }
+
+      const connected = await checkConnectionStatus(sessionId);
+      
+      if (connected) {
+        Alert.alert('Success!', 'Google Drive connected successfully!');
+        router.replace('/files');
+      } else {
+        Alert.alert(
+          'Not Connected',
+          'Google Drive is not connected yet. Please make sure you completed the authentication in the browser and granted all permissions.',
+          [
+            { text: 'Try Again', onPress: () => setLoading(false) },
+            { text: 'Check Again', onPress: handleCheckConnection }
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('Check connection error:', error);
+      Alert.alert('Error', 'Failed to check connection status');
       setLoading(false);
     }
   };
