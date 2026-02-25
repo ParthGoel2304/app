@@ -52,6 +52,8 @@ export default function ParchiScreen() {
   // Edit states
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [showAddRow, setShowAddRow] = useState(false);
+  const [newRowLabel, setNewRowLabel] = useState('');
 
   useFocusEffect(
     useCallback(() => {
