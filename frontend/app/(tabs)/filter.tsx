@@ -205,7 +205,9 @@ export default function FilterScreen() {
     sizes.forEach(sz => {
       const match = findMatch(sz, store.data, eIdx, fIdx, hIdx, oIdx);
       if (match) {
-        found.push({ ...match, adjustedRate: rate + match.sizeDiff });
+        // Formula: Final Rate = Basic Rate + (Size Difference / 1000)
+        const finalRate = rate + (match.sizeDiff / 1000);
+        found.push({ ...match, adjustedRate: parseFloat(finalRate.toFixed(2)) });
       } else {
         notFound.push(sz);
       }
