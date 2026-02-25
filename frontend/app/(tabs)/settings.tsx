@@ -129,7 +129,7 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={18} color="#EA4335" />
         </TouchableOpacity>
 
-        <Text style={styles.version}>Parchi Builder  ·  v1.0</Text>
+        <Text style={styles.version}>Smart Excel Reader  ·  v1.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
