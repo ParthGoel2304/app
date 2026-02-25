@@ -71,11 +71,11 @@ export default function DataScreen() {
   };
 
   const handleBack = () => {
-    router.back();
+    router.push('/sheets');
   };
 
   const handleBackToFiles = () => {
-    router.push('/files');
+    router.replace('/files');
   };
 
   if (loading) {
