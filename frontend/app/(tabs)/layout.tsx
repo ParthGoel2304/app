@@ -731,4 +731,28 @@ const styles = StyleSheet.create({
   stockVal: { fontSize: 20 },
   stockIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, gap: 8 },
   stockIndicatorText: { fontSize: 14, fontWeight: '600', color: '#202124' },
+  // Multi-entry styles
+  multiIndicator: {
+    position: 'absolute', top: 2, right: 2,
+    backgroundColor: '#4285F4', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1,
+  },
+  multiIndicatorText: { fontSize: 8, fontWeight: '700', color: '#fff' },
+  emptyRackContent: { alignItems: 'center', paddingVertical: 24 },
+  emptyRackText: { fontSize: 16, fontWeight: '600', color: '#5f6368', marginTop: 12 },
+  emptyRackSub: { fontSize: 13, color: '#9aa0a6', marginTop: 4 },
+  multiEntryList: { maxHeight: 200, marginBottom: 16 },
+  entryItem: { 
+    backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 8,
+    borderLeftWidth: 3, borderLeftColor: '#4285F4',
+  },
+  entryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  entrySize: { fontSize: 14, fontWeight: '600', color: '#202124', flex: 1 },
+  entryStock: { fontSize: 16, fontWeight: '700' },
+  entryDiff: { fontSize: 12, marginTop: 4 },
+  totalRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#E8F0FE', borderRadius: 10, padding: 12, marginTop: 8,
+  },
+  totalLabel: { fontSize: 14, fontWeight: '600', color: '#4285F4' },
+  totalValue: { fontSize: 18, fontWeight: '700', color: '#4285F4' },
 });
