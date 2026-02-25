@@ -90,7 +90,7 @@ export default function LayoutScreen() {
 
   const loadFileRegistry = async () => {
     // Get session ID
-    const sid = await AsyncStorage.getItem('sessionId');
+    const sid = await AsyncStorage.getItem('session_id');
     setSessionId(sid);
     
     // Get files from registry
