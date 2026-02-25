@@ -73,8 +73,10 @@ export default function DataScreen() {
       const exists = library.find(s => s.fileId === fId && s.sheetName === sName);
       setAlreadySaved(!!exists);
       
+      // Add timestamp to force fresh data (bypass cache)
       const response = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${session}&file_id=${fId}&sheet_name=${encodeURIComponent(sName)}&cell_range=${encodeURIComponent(cRange)}`
+        `${BACKEND_URL}/api/excel/read?session_id=${session}&file_id=${fId}&sheet_name=${encodeURIComponent(sName)}&cell_range=${encodeURIComponent(cRange)}&_t=${Date.now()}`,
+        { headers: { 'Cache-Control': 'no-cache' } }
       );
       
       setExcelData(response.data);
