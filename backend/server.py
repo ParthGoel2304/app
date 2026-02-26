@@ -445,6 +445,124 @@ async def read_excel_data(
         logger.error(f"Failed to read Excel data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to read Excel data: {str(e)}")
 
+# ==================== LAYOUT VERSION ENDPOINTS ====================
+
+class LayoutSection(BaseModel):
+    name: str = ""
+    rows: List[List[str]]
+
+class LayoutVersionCreate(BaseModel):
+    session_id: str
+    name: str
+    layout_type: str  # "jgt" or "jgi"
+    sections: List[LayoutSection]
+
+class LayoutVersionUpdate(BaseModel):
+    name: Optional[str] = None
+    sections: Optional[List[LayoutSection]] = None
+
+@api_router.post("/layouts/save")
+async def save_layout(data: LayoutVersionCreate):
+    """Save a new layout version"""
+    layout_id = str(uuid.uuid4())
+    doc = {
+        "layout_id": layout_id,
+        "session_id": data.session_id,
+        "name": data.name,
+        "layout_type": data.layout_type,
+        "sections": [s.dict() for s in data.sections],
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    await db.layout_versions.insert_one(doc)
+    logger.info(f"Saved layout version '{data.name}' ({data.layout_type}) id={layout_id}")
+    return {"layout_id": layout_id, "name": data.name}
+
+@api_router.get("/layouts/list")
+async def list_layouts(session_id: str = Query(...), layout_type: Optional[str] = Query(None)):
+    """List all saved layout versions for a session"""
+    query = {"session_id": session_id}
+    if layout_type:
+        query["layout_type"] = layout_type
+    
+    docs = await db.layout_versions.find(query, {"_id": 0}).sort("updated_at", -1).to_list(50)
+    # Convert datetime to string
+    for doc in docs:
+        doc["created_at"] = doc["created_at"].isoformat() if doc.get("created_at") else None
+        doc["updated_at"] = doc["updated_at"].isoformat() if doc.get("updated_at") else None
+    return {"layouts": docs}
+
+@api_router.get("/layouts/{layout_id}")
+async def get_layout(layout_id: str):
+    """Get a specific layout version"""
+    doc = await db.layout_versions.find_one({"layout_id": layout_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Layout not found")
+    doc["created_at"] = doc["created_at"].isoformat() if doc.get("created_at") else None
+    doc["updated_at"] = doc["updated_at"].isoformat() if doc.get("updated_at") else None
+    return doc
+
+@api_router.put("/layouts/{layout_id}")
+async def update_layout(layout_id: str, data: LayoutVersionUpdate):
+    """Update an existing layout version"""
+    updates: Dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
+    if data.name is not None:
+        updates["name"] = data.name
+    if data.sections is not None:
+        updates["sections"] = [s.dict() for s in data.sections]
+    
+    result = await db.layout_versions.update_one(
+        {"layout_id": layout_id},
+        {"$set": updates}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Layout not found")
+    return {"status": "updated", "layout_id": layout_id}
+
+@api_router.delete("/layouts/{layout_id}")
+async def delete_layout(layout_id: str):
+    """Delete a layout version"""
+    result = await db.layout_versions.delete_one({"layout_id": layout_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Layout not found")
+    return {"status": "deleted", "layout_id": layout_id}
+
+# ==================== VOICE TRANSCRIPTION ENDPOINT ====================
+
+@api_router.post("/voice/transcribe")
+async def transcribe_audio(file: UploadFile = File(...), language: str = Form(default="hi")):
+    """Transcribe audio using OpenAI Whisper"""
+    try:
+        from emergentintegrations.llm.openai import OpenAISpeechToText
+        
+        stt = OpenAISpeechToText(api_key=os.environ['EMERGENT_LLM_KEY'])
+        
+        # Save uploaded file to temp
+        content = await file.read()
+        suffix = Path(file.filename or "audio.webm").suffix or ".webm"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        with open(tmp_path, "rb") as audio_file:
+            response = await stt.transcribe(
+                file=audio_file,
+                model="whisper-1",
+                language=language,
+                response_format="json",
+                prompt="Hindi and Hinglish inventory sizes like 72X72X25, dimensions, numbers"
+            )
+        
+        os.unlink(tmp_path)
+        
+        text = response.text if hasattr(response, 'text') else str(response)
+        logger.info(f"Transcribed audio: '{text}' (lang={language})")
+        return {"text": text, "language": language}
+    
+    except Exception as e:
+        logger.error(f"Transcription failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
 # Include the router in the main app
 app.include_router(api_router)
 
