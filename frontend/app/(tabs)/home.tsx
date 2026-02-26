@@ -563,9 +563,9 @@ const styles = StyleSheet.create({
   typeBadgeSmallText: { fontSize: 9, fontWeight: '600', textTransform: 'uppercase' },
   
   // Action Grid
-  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   actionCard: {
-    flex: 1, minWidth: '44%', backgroundColor: '#fff', borderRadius: 14,
+    flexBasis: '30%', flexGrow: 1, maxWidth: '48%', backgroundColor: '#fff', borderRadius: 14,
     padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#e8e8e8',
   },
   actionIcon: {
