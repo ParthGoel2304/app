@@ -210,7 +210,15 @@ Quick Actions
 
 ## Session Log
 
-### 2026-02-25 (Current Session - Final Fixes)
+### 2026-02-26 (Current Session)
+- **FIX: Folder-restricted Drive access** - Backend now fetches files ONLY from office folder ID: `1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH`
+- **Result**: Only 3 files shown (FEB-26-JGT.xlsx, FEB-26-JGI.xlsx, MS_Inventory_System_FINAL.xlsx)
+- **FIX: JGI "S1" rack** - Changed layout grid from "3X1.5X20(S1)" to "S1"
+- **FIX: JGT "Others" rack** - Made "Others" a valid rack ID (not filtered as label)
+- **FIX: Clean label logic** - Only "Office Side" and "Gate Side" render as labels
+- **Temp files filtered** - Backend filters out `~$filename.xlsx` files
+
+### 2026-02-25 (Previous Session)
 - **FIX 1-3: Basic Fixes** - Layout column mapping, Drive cache busting, Default tab = Home
 - **FIX 4: Multi-Size Rack Support** - Racks can have multiple sizes (duplicates). Dialog shows:
   - Single entry: detailed view (Size, Diff, Stock)
