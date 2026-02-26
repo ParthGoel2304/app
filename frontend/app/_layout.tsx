@@ -13,6 +13,8 @@ export default function RootLayout() {
         <Stack.Screen name="sheets" />
         <Stack.Screen name="data" />
         <Stack.Screen name="filter" />
+        <Stack.Screen name="sheetview" />
+        <Stack.Screen name="+not-found" />
       </Stack>
     </>
   );
