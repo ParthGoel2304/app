@@ -260,17 +260,20 @@ async def check_drive_status(session_id: str = Query(...)):
         "session_id": session_id
     }
 
-# 5. LIST EXCEL FILES FROM DRIVE
+# Office folder ID - only fetch files from this folder
+OFFICE_FOLDER_ID = "1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH"
+
+# 5. LIST EXCEL FILES FROM DRIVE (from specific folder only)
 @api_router.get("/drive/files")
 async def list_excel_files(session_id: str = Query(...)):
-    """List all Excel files from Google Drive"""
+    """List Excel files from the office Drive folder only"""
     try:
         service = await get_drive_service(session_id)
         
-        # Query for Excel files - include trashed=false to ensure fresh results
-        query = "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
+        # Query for Excel files ONLY in the specific office folder
+        query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
         
-        # Use supportsAllDrives to ensure we get fresh results
+        # Force fresh query - no caching
         results = service.files().list(
             q=query,
             pageSize=100,
@@ -282,19 +285,7 @@ async def list_excel_files(session_id: str = Query(...)):
         
         files = results.get('files', [])
         
-        # Filter out temp files (~$filename.xlsx) that appear when Excel is open
-        # Also deduplicate by file name, keeping the most recent version
-        seen_names = {}
-        for f in files:
-            name = f['name']
-            if name.startswith('~$'):
-                continue
-            if name not in seen_names:
-                seen_names[name] = f
-            # If we already have this name, keep the one with more recent modifiedTime
-            elif f['modifiedTime'] > seen_names[name]['modifiedTime']:
-                seen_names[name] = f
-        
+        # Filter out temp files (~$filename.xlsx)
         excel_files = [
             ExcelFile(
                 file_id=f['id'],
@@ -302,13 +293,11 @@ async def list_excel_files(session_id: str = Query(...)):
                 modified_time=f['modifiedTime'],
                 size=f.get('size', 'Unknown')
             ).dict()
-            for f in seen_names.values()
+            for f in files
+            if not f['name'].startswith('~$')
         ]
         
-        # Sort by modifiedTime desc
-        excel_files.sort(key=lambda x: x['modified_time'], reverse=True)
-        
-        logger.info(f"Found {len(excel_files)} Excel files for session {session_id}")
+        logger.info(f"Found {len(excel_files)} Excel files in office folder for session {session_id}")
         return {"files": excel_files}
     
     except Exception as e:
