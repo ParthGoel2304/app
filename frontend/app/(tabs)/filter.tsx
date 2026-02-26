@@ -1079,4 +1079,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285F4', alignItems: 'center',
   },
   voiceConfirmText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  // Recording controls
+  recordingControls: { alignItems: 'center', paddingVertical: 16 },
+  recordBtn: {
+    width: 100, height: 100, borderRadius: 50, backgroundColor: '#4285F4',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  recordBtnActive: { backgroundColor: '#EA4335' },
+  recordBtnLabel: { fontSize: 12, color: '#5f6368', marginTop: 8, textAlign: 'center' },
+  recordingPulse: {
+    width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  transcribingBox: { alignItems: 'center', paddingVertical: 16 },
+  transcribingText: { fontSize: 13, color: '#4285F4', fontWeight: '600', marginTop: 10 },
+  transcriptionResult: { backgroundColor: '#E6F4EA', borderRadius: 10, padding: 12, marginBottom: 12 },
+  transcriptionLabel: { fontSize: 11, color: '#34A853', fontWeight: '600', marginBottom: 4 },
+  transcriptionText: { fontSize: 16, color: '#202124', fontWeight: '600' },
+  orDivider: { fontSize: 12, color: '#9aa0a6', textAlign: 'center', marginVertical: 8 },
 });
