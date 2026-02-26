@@ -100,12 +100,15 @@ export default function LayoutScreen() {
       setSheetLibrary(library);
 
       // Find JGT and JGI profiles by sheet name
-      const jgt = library.find(
-        (s) => s.sheetName.toLowerCase().includes('inventory_jgt')
-      );
-      const jgi = library.find(
-        (s) => s.sheetName.toLowerCase().includes('inventory_jgi')
-      );
+      // Actual names: "Inventory_Chart_JGT" and "Inventory Chart_JGI"
+      const jgt = library.find((s) => {
+        const n = s.sheetName.toLowerCase().replace(/[\s_]+/g, '');
+        return n.includes('chartjgt') || n.includes('inventory_chart_jgt');
+      });
+      const jgi = library.find((s) => {
+        const n = s.sheetName.toLowerCase().replace(/[\s_]+/g, '');
+        return n.includes('chartjgi') || n.includes('inventorychartjgi');
+      });
 
       setJgtProfile(jgt || null);
       setJgiProfile(jgi || null);
