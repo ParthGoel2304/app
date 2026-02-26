@@ -124,6 +124,8 @@ export const getStockSheets = (): SheetProfile[] => {
 export const getLayoutSheets = (): SheetProfile[] => {
   return _sheetLibrary.filter(s => 
     s.sheetType === 'layout' || 
+    s.sheetName.toLowerCase().includes('inventory_jgt') ||
+    s.sheetName.toLowerCase().includes('inventory_jgi') ||
     s.sheetName.toLowerCase().includes('inventory_chart')
   );
 };
