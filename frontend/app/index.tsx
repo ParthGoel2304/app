@@ -42,6 +42,7 @@ export default function EntryScreen() {
           setExcelStore({
             data: dataRes.data.data,
             fileName: fileName || '',
+            fileId: fileId || '',
             sheetName,
             cellRange,
             loadedAt: Date.now(),
