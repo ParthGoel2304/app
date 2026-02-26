@@ -17,22 +17,23 @@ Inventory managers / warehouse staff, primarily Hindi-speaking, using the app on
 - Users add Excel files from Google Drive (from Office folder ID: 1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH)
 - Users save sheet "profiles" (file name, sheet name, range, cached data) to a persistent library
 - Home screen displays saved profiles and allows setting one as "active"
-- Auto-detect sheet type: layout (Inventory_JGT/JGI), stock (STOCK), mixed
+- Auto-detect sheet type: layout (Inventory_Chart_JGT/JGI), stock (STOCK), mixed
 
 ### Data Source Rule (Layout)
-- JGT layout → Inventory_JGT sheet
-- JGI layout → Inventory_JGI sheet
+- JGT layout → `Inventory_Chart_JGT` sheet (file: MS_Inventory_System_Final)
+- JGI layout → `Inventory Chart_JGI` sheet (note: space not underscore between "Inventory" and "Chart")
 - Column B=Rack ID, E=Size, I=Stock, J=Rate Diff
 - No dependency on STOCK sheet for layout
-- Trim + case-insensitive matching
+- Trim + case-insensitive matching (normalized: collapse spaces/underscores)
 
 ### Sheet View (STOCK pager)
 - Source: STOCK sheet from saved profile
 - Visible columns: A, E, F, G, H, I, M, N, O (hide B, C, D, J, K, L)
-- 4-page pager with rows split: 1-42, 43-74, 75-110, 111-153
-- Pinch zoom, pan, double-tap reset
-- Timestamp display, auto-refresh, manual refresh
-- Cached data with retry on failure
+- Vertical scroll, 24 rows per page, dynamic page count
+- All 9 visible columns fit on screen width (no horizontal scroll)
+- Column E wider for full size values
+- Timestamp display, manual refresh, cached data
+- Retry on failure, cached fallback
 
 ## Navigation
 Bottom tabs: Home, Filter, Parchi, Inventory, Layout
@@ -65,28 +66,28 @@ Quick actions on Home: Filter, Parchi, Sheet View, Layout, Inventory
     │   ├── data.tsx
     │   ├── files.tsx
     │   ├── sheets.tsx
-    │   ├── sheetview.tsx (NEW: STOCK 4-page pager)
+    │   ├── sheetview.tsx (STOCK vertical pager, 24 rows/page)
     │   └── (tabs)/
     │       ├── _layout.tsx (Tab config, initialRoute=home)
-    │       ├── home.tsx (Sheet library + Quick Actions)
+    │       ├── home.tsx (Sheet library + 5 Quick Actions)
     │       ├── filter.tsx
     │       ├── parchi.tsx
     │       ├── inventory.tsx
     │       └── layout.tsx (JGT/JGI visual grid)
     └── utils/
-        └── store.ts (Zustand: sheet library, profiles)
+        └── store.ts (Zustand: sheet library, profiles, detectSheetType)
 ```
 
 ## Completed Features (as of 26 Feb 2026)
 - [x] Google OAuth integration for Drive access
 - [x] Sheet Library system (add, save, switch profiles)
 - [x] Visual Layout screen (JGT + JGI grids with rack tap dialog)
-- [x] Sheet View screen (STOCK 4-page pager with zoom)
+- [x] Layout detects Inventory_Chart_JGT and Inventory Chart_JGI sheet names
+- [x] Sheet View screen (STOCK vertical pager, 24 rows/page, all cols fit)
 - [x] Home Quick Actions (5 actions: Filter, Parchi, Sheet View, Layout, Inventory)
 - [x] Backend: Office folder file listing with temp file filtering
 - [x] Backend: Excel read with full range support (removed read_only limitation)
 - [x] Dynamic OAuth redirect URIs
-- [x] Deployment env vars configured
 
 ## Upcoming Tasks
 - [ ] (P0) Smart Filter — Advanced category shortcuts + keyword search
