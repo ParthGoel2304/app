@@ -294,7 +294,7 @@ export default function LayoutScreen() {
           <Ionicons name="grid-outline" size={56} color="#5f6368" />
           <Text style={s.centerTitle}>No Layout Sheets</Text>
           <Text style={s.centerSub}>
-            Save Inventory_JGT and Inventory_JGI{'\n'}
+            Save Inventory_Chart_JGT and Inventory Chart_JGI{'\n'}
             sheets from Home tab to view layouts.
           </Text>
         </View>
