@@ -186,6 +186,7 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
             raise HTTPException(status_code=404, detail="Session not found")
         
         redirect_uri = _get_redirect_uri(request)
+        logger.info(f"OAuth CONNECT - redirect_uri: {redirect_uri}, Host: {request.headers.get('Host')}, XFH: {request.headers.get('X-Forwarded-Host')}, XFP: {request.headers.get('X-Forwarded-Proto')}")
         
         flow = Flow.from_client_config(
             {
