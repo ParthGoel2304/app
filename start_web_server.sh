@@ -13,4 +13,4 @@ cd /app/frontend/dist
 python3 -m http.server 3000 > /tmp/web_server.log 2>&1 &
 
 echo "Web server started on port 3000"
-echo "Access the app at: https://inventory-lookup-app.preview.emergentagent.com"
+echo "Access the app at: https://parchi-quotation.preview.emergentagent.com"

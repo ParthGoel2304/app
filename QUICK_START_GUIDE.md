@@ -28,7 +28,7 @@ Great! You've linked your Google Drive (partharjun04@gmail.com) with Excel. Now 
 ## 📱 Step 3: Using the Mobile App
 
 ### A. Open the App
-- **Web Browser**: https://inventory-lookup-app.preview.emergentagent.com
+- **Web Browser**: https://parchi-quotation.preview.emergentagent.com
 - **Mobile Device**: Scan QR code or visit the URL
 
 ### B. Connect Google Drive
@@ -146,7 +146,7 @@ Your Excel files are now accessible on your mobile device! Here's what you can d
 
 ## 🔗 Quick Links
 
-- **App URL**: https://inventory-lookup-app.preview.emergentagent.com
+- **App URL**: https://parchi-quotation.preview.emergentagent.com
 - **Google Drive**: https://drive.google.com
 - **Your Email**: partharjun04@gmail.com
 - **Full Documentation**: See `/app/README_EXCEL_READER.md`

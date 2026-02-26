@@ -1,180 +1,183 @@
-<analysis>original_problem_statement:
+<analysis>
+original_problem_statement:
 The user wants to build a mobile-first inventory lookup and quotation app called Smart Excel Reader. The app should connect to the user's Google account () to read data from Excel files in Google Drive.
 
 **PRODUCT REQUIREMENTS (Consolidated from user messages):**
 
-1.  **Multi-File Architecture:**
-    *   The app must function as a mini Excel manager.
-    *   Users add multiple Excel files from Google Drive on the Home screen.
-    *   The app stores these files in a file registry (local cache/state).
-    *   Other tabs (like Layout) use a dropdown to select from the files already loaded in the registry, eliminating direct Drive calls from those tabs.
+1.  **Sheet Library Architecture:**
+    *   The app functions as a local library of sheet profiles.
+    *   Users add Excel files from a specific Google Drive folder ().
+    *   When a sheet is loaded, the user can save it as a profile (containing file name, sheet name, range, and cached data) to a persistent library.
+    *   The Home screen displays the list of saved sheet profiles and allows setting one as active.
+    *   Other tabs (Filter, Parchi, Layout) operate on the data from the currently active sheet profile.
 
 2.  **Navigation & UI:**
     *   A persistent bottom navigation bar with tabs: , , , , and .
-    *   : Acts as a file manager, showing loaded files and an Add File button.
+    *   : Manages the sheet library, showing the active profile and a list of saved profiles.
     *   : Quotation/Invoice builder.
     *   : A master list view of stock from the selected file.
     *   : A visual warehouse map/rack layout renderer.
     *   : A log of saved Parchis.
 
 3.  **Smart Filter & Voice Search (Phase 1):**
-    *   **Search Sources:** Search across  (Col E),  (Col F), and special keywords (, , etc.).
-    *   **Category Shortcuts:** Keywords like , ,  should filter specific row ranges.
-    *   **Live Suggestions:** Show a scrollable list of top 15 suggestions as the user types.
-    *   **Voice Search (Hindi NLP):**
-        *   Use the device's speech-to-text.
-        *   Normalize colloquial Hindi/Hinglish speech (e.g., bees bees panch -> 20x20x5).
-        *   Implement a Voice Training Panel where the user can map custom phrases to sizes.
-    *   **Voice Output:** A Speak button on each result to announce Size, Rate, Rack, and Stock in natural language.
+    *   Search across  (Col E),  (Col F), and special keywords.
+    *   Implement category shortcuts and live suggestions.
+    *   Implement Hindi/Hinglish voice search with a custom Voice Training Panel.
+    *   Include a voice output Speak button on results.
 
-4.  **Rate Calculation Engine:**
-    *   **Formula:** .
-    *   The  should be auto-calculated and displayed in the Parchi, but remain editable.
+4.  **Parchi (Quotation) System (Phase 2):**
+    *   Build a full quotation system with a dynamic header, item table, and dynamic footer for charges (Freight, GST, etc.).
+    *   Enable saving and sharing Parchis as PDFs, images, or via WhatsApp.
 
-5.  **Parchi (Quotation) System (Phase 2):**
-    *   **Dynamic Header:** Editable fields for Party Name, Location, Date, Vehicle Number.
-    *   **Table Columns:** S.No, Size, Pcs, Weight(kg), Rate, Amount. Pcs and Rate are editable.
-    *   **Dynamic Footer:** Editable and reorderable charge rows (Freight, Loading, Kanta).
-    *   **GST Calculation:** Editable GST (default 18%) applied to the subtotal.
-    *   **Save & Share:** Save Parchi with a custom name. Share via WhatsApp, PDF, Print, or as an image. The PDF name should be customizable via a popup before saving.
+5.  **Visual Inventory Layout (Phase 3):**
+    *   Dynamically render visual layouts (JGT & JGI) from  sheets.
+    *   The layout grid should display Rack IDs.
+    *   Clicking a rack box must open a dialog showing detailed stock info.
+    *   The dialog must support racks with multiple sizes/stock entries by displaying them as a list.
+    *   Special rack IDs like Others (JGT) and S1 (JGI) must be treated as valid, clickable racks.
 
-6.  **Visual Inventory Layout (Phase 3):**
-    *   **File Source:** The Layout tab will use the new file registry, allowing the user to select any loaded file.
-    *   **Layout Rendering:**
-        *   Dynamically render two distinct visual layouts (JGT & JGI) based on data from  and  sheets in the selected  file.
-        *   The layout is a grid of Rack boxes, showing Rack Name and Size.
-    *   **Interactivity:** Clicking a rack box should pull detailed stock info (, , ) from the corresponding data sheet columns (B, J, I).
-
-**User's preferred language**: The user communicates in English. Some features, like voice recognition and output, require **Hindi** language processing. The agent MUST respond to the user in English.
+**User's preferred language**: The user communicates primarily in English. The agent MUST respond in English. Some app features, like voice search, require Hindi language processing.
 
 **what currently exists?**
-The application is built on React Native (Expo) with a FastAPI backend. It features a 5-tab bottom navigation (, , , , ) powered by . Global state is managed via a Zustand store.
+The application is a React Native (Expo) frontend with a FastAPI backend. It features a 5-tab navigation structure and uses Zustand for state management.
 
-In this session, a critical and recurring Packager not running / 404 Not Found error that blocked all user testing was resolved. Several UI/UX improvements were made, including fixing suggestion list overlaps and adding a PDF renaming feature.
+In this session, the agent successfully completed a major architectural refactor, transitioning from a single-file model to a robust Sheet Library system as per the user's detailed specifications. The Layout screen was significantly improved to handle complex real-world scenarios, such as racks with multiple stock items, and to correctly render special rack zones.
 
-Most significantly, the agent has started a major architectural refactor to move from a single-file system to a multi-file registry model, as requested by the user. The Zustand store and the Layout screen have been updated to support this, but the implementation is not yet complete.
+However, the project is currently blocked by persistent deployment failures. The agent has iteratively fixed several deployment issues identified by the deployment subagent, including hardcoded variables and missing dependencies. The last action was to fix a hardcoded OAuth redirect URI in the backend.
 
 **Last working item**:
-    - Last item agent was working: Implementing the new multi-file architecture. The agent updated  to hold an array of files and refactored  to read from this new store. The agent was in the process of modifying  to correctly add newly loaded files into this registry.
+    - Last item agent was working: Resolving recurring production deployment failures. The agent identified and fixed hardcoded Google OAuth redirect URIs in  that were causing deployment to fail in a non-local environment.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? both
+    - Which testing method agent to use? deployment_agent_v4
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P0) The multi-file registry architecture is incomplete.
+  - Issue 1: Production Deployment is Failing (P0)
 
   Issues Detail:
-  - **Issue 1: Incomplete Multi-File Architecture Refactor (P0)**
-     - Attempted fixes: The agent updated  and . The next step is to modify the file loading logic in  to register files instead of replacing the single active file.
+  - **Issue 1: Production Deployment is Failing (P0)**
+     - Attempted fixes:
+        - The hardcoded Google Drive Folder ID was moved to .
+        -  was removed to prevent conflicts with yarn install v1.22.22
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.40s. during the build process.
+        - The missing  dependency, which caused the Android build to fail, was added to .
+        - Hardcoded OAuth redirect URIs () in  were replaced with a dynamic mechanism to construct the URL from request headers.
      - Next debug checklist:
-       1.  Review the  function in .
-       2.  Modify it to use the  action from the Zustand store, passing the , , , and .
-       3.  Update the  screen () to display the list of registered files from the store and act as a file manager.
-       4.  Ensure the  and  tabs also correctly reference the currently active file from the new registry.
-     - Why fix this issue and what will be achieved with the fix? This is a fundamental architectural change requested by the user to decouple the app's tabs and improve usability. Completing it will make the app more robust and align it with the user's vision.
+       1.  Run the  tool again to re-attempt deployment.
+       2.  Carefully analyze the new build logs to confirm if the dynamic redirect URI fix was successful.
+       3.  Identify the next blocker from the logs if the deployment still fails.
+     - Why fix this issue and what will be achieved with the fix? This is a critical blocker. The user cannot use or test the application in a production environment until deployment succeeds.
      - Status: IN PROGRESS
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: None. This is the primary task.
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? N/A (Requires deployment agent)
+     - Blocked on other issue: None. This is the highest priority blocker.
 
 **In progress Task List**:
-  - **Task 1: Complete Multi-File Architecture Refactor (P0)**
-     - Where to resume: Modify  to correctly populate the new file registry in the Zustand store upon file load.
-     - What will be achieved with this? A stable, multi-file system where the Layout tab is independent of the Home tab's initial file load, resolving a major UX issue.
+  - **Task 1: Achieve a Successful Production Deployment (P0)**
+     - Where to resume: Invoke the  to test the latest fixes.
+     - What will be achieved with this? A deployable and running application in the production environment.
      - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Frontend
+     - Should Test frontend/backend/both after fix? N/A
      - Blocked on something: No.
 
 **Upcoming and Future Tasks**
-**Upcoming Tasks (Phase 1 & 2):**
+**Upcoming Tasks (Post-Deployment):**
 -   **(P0) Smart Filter - Advanced Logic:** Implement category shortcut keywords (, ) and special item keyword search in .
--   **(P1) Voice Search - Hindi NLP:**
-    -   Integrate speech-to-text.
-    -   Create the custom parser to normalize Hindi/Hinglish phrases into standard size formats (e.g., bees bees panch -> 20x20x5).
-    -   Build the Voice Training Panel UI for user-defined slang.
--   **(P1) Parchi - Full Implementation:**
-    -   Implement the full calculation logic including editable charges (Freight, Kanta) and GST.
-    -   Enable adding, deleting, and reordering of charge rows.
--   **(P2) Inventory Tab:** Implement the  screen to display a master stock list from the selected file.
--   **(P2) Voice Output:** Add the Speak button to filter results and integrate  to announce item details.
+-   **(P1) Voice Search - Hindi NLP:** Integrate speech-to-text, create the custom parser for Hinglish, and build the Voice Training Panel UI.
+-   **(P1) Parchi - Full Implementation:** Implement the full calculation logic, dynamic charge rows, and GST calculation.
+-   **(P2) Inventory Tab:** Implement the  screen to display a master stock list.
+-   **(P2) Voice Output:** Add the Speak button to filter results and integrate .
 
-**Future Tasks (Phase 3 & Beyond):**
--   **(P1) Visual Layout - Rendering Engine:** In , implement the actual grid rendering for both JGT and JGI layouts based on the loaded sheet data. The current code only handles file selection.
--   **(P2) Visual Layout - Interactivity:** Make the rendered rack boxes clickable to show detailed stock information.
+**Future Tasks:**
+-   **(P1) Visual Layout - Interactivity:** While the data handling is improved, the actual grid rendering in  is still based on a hardcoded structure. This should be made more dynamic if needed.
 -   **(P2) Parchi Log:** Implement the  screen to view and manage saved Parchis.
--   **(P2) Layout Builder:** A future feature to allow users to add, rename, and drag-and-drop racks in the layout view.
+-   **(P2) Layout Builder:** A potential future feature to allow users to visually configure the rack layouts.
 
 **Completed work in this session**
-- **CRITICAL BUG FIX:** Resolved the persistent Packager not running / 404 Not Found connection issue, unblocking all user testing.
-- **Parchi PDF Renaming:** Implemented a modal to allow users to name the Parchi PDF before saving.
-- **UI/UX Fixes:**
-    -   Made the Smart Filter's suggestion list scrollable within a container with a max height, preventing it from overlapping other UI elements.
-    -   Improved loading and error states for the Parchi and Layout tabs to prevent crashes and white screens.
-- **Architecture Refactor (Initiated):** Began the shift from a single-file system to a multi-file registry to decouple tabs, updating the Zustand store () and .
-- **Navigation Bug Fix:** Fixed a routing bug where tapping the Drive icon in the Layout tab incorrectly redirected the user to the Home screen.
+- **Architecture:** Successfully implemented the Sheet Library system. The app now supports adding, saving, and switching between multiple sheet profiles.
+- **Layout Screen Overhaul:**
+    - Implemented a dialog to correctly display multiple sizes/stock for a single rack ID.
+    - Fixed UI logic to render special racks (Others, S1) as clickable items instead of static labels.
+    - Cleaned up the layout grid to only show rack IDs, with details moved to a modal dialog.
+- **Google Drive Integration:**
+    - Restricted backend to fetch files only from a user-specified folder ID.
+    - Added filtering to ignore temporary Excel files (e.g., ).
+- **Navigation:** Set the default screen on app launch to the  tab.
+- **Deployment Bug Fixes:**
+    - Resolved  vs.  conflicts.
+    - Added the missing  dependency to fix the Android build.
+    - Moved hardcoded  from code to an environment variable.
+    - Made Google OAuth redirect URIs dynamic in  to adapt to the production environment.
 
 **Earlier issues found/mentioned but not fixed**
-- The core, complex logic for most features (Hindi voice NLP, visual layout rendering, advanced filtering) has been specified in detail by the user but is not yet implemented. The focus has been on fixing blockers and setting up the architecture.
+-   **Google Drive Sync Latency:** The user reported seeing stale file dates. Investigation revealed this is due to Google Drive's own sync behavior and not an application bug. The backend has already been optimized with cache-busting. This issue is external and considered resolved from the application side.
 
 **Known issue recurrence from previous fork**
-  - **Issue recurrence in previous fork:** Deployment/Connection issues (404 errors, tunnel failures).
-  - **Recurrence count:** High (occurred multiple times).
-  - **Status:** RESOLVED (in this session).
+  - **Issue recurrence in previous fork:** Deployment failures.
+  - **Recurrence count:** High.
+  - **Status:** IN PROGRESS. This remains the primary unresolved issue.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Frontend:** React Native, Expo, Expo Router (Tab Navigation)
-- **State Management:** Zustand (refactored for a multi-file registry)
+- **Frontend:** React Native, Expo, Expo Router
+- **State Management:** Zustand
 - **Backend:** FastAPI (Python)
+- **Deployment:** Emergent Native Deployments (Kubernetes wrapper), EAS Build for Android
 - **3rd Party:** Google Drive API, Expo Print/Sharing
 
 **key DB schema**
-  - **users**:  (No changes)
+- No changes made to the database schema in this session.
 
 **changes in tech stack**
--   **expo-print** and **expo-sharing** were installed for the PDF feature.
--   The **Zustand store** was significantly refactored to manage an array of file objects instead of a single file's data.
+- Added  to frontend dependencies to resolve a deployment build error.
 
 **All files of reference**
--   : **(Heavily Modified)** Now defines the state shape for the new multi-file registry.
--   : **(Heavily Modified)** Rewritten to be independent and use the new file registry from the store instead of making its own Drive API calls.
--   : **(Next to be modified)** This file's  function is where the logic to add files to the new registry needs to be implemented.
--   : **(Modified)** Updated with a modal and logic for renaming PDFs before saving. Also improved with loading/error states.
--   : **(Modified)** Styles updated to make the suggestion box scrollable and prevent UI overlap.
--   : **(New File)** Placeholder for the inventory list view.
+-   : **(Heavily Modified)** Changed to use an environment variable for  and to dynamically generate the Google OAuth redirect URI based on request headers.
+-   : **(Modified)** Added the  variable.
+-   : **(Modified)** Added  as a dependency.
+-   : **(Heavily Modified)** Entire logic was refactored to support a dialog for multiple stock entries per rack and to correctly handle special rack IDs like Others and S1.
+-   : **(Heavily Modified)** State management was completely redesigned to support the new Sheet Library architecture.
+-   : **(Heavily Modified)** Redesigned from a simple file loader to a comprehensive manager for the Sheet Library.
+-   : **(Modified)** Set  to fix the default screen.
 
 **Areas that need refactoring**:
-- The primary task is to **complete the ongoing refactor** of the file handling logic. The changes in  and  will not work correctly until  and  are updated to support the new multi-file registry model.
+-  remains a very large file (over 900 lines). It should be broken down into smaller, more manageable components in a future session.
 
 **key api endpoints**
-- No new API endpoints were created. The existing endpoints for Google authentication and file access are used.
+- : Logic updated to use  from env and filter out temp files.
+- : Logic updated to use a dynamic redirect URI.
+- : Logic updated to use a dynamic redirect URI.
 
 **Critical Info for New Agent**
--   **Priority 1: Complete the Multi-File Architecture.** The app is in the middle of a major refactor. Your immediate task is to modify  to add files to the new Zustand file registry. Then, update  to act as a file manager, displaying the list of loaded files.
--   **User's Vision is Clear:** The user has provided extremely detailed, structured requirements for all features (Smart Filter, Voice NLP, Parchi, Visual Layout). Refer to user messages #89, #119, #122, and #151 for the full specifications. Do not deviate from these.
--   **Blocker is Solved:** The persistent connection issue is fixed. You should have a stable environment for development and testing. Do not revert to old fixes for this.
--   **Phased Approach:** The user has agreed to a phased implementation. Focus on completing the architecture refactor first, then move to Phase 1 (Advanced Filter/Voice), Phase 2 (Parchi/Inventory), and Phase 3 (Visual Layout Rendering).
+-   **Priority #1 is Deployment:** Do not proceed with any new features. Your immediate and only task is to achieve a successful deployment. The last fix involved making OAuth redirect URIs dynamic. Your first step should be to run the  to verify if this fix worked and to identify the next blocker.
+-   **Do Not Revisit Solved Issues:** The Sheet Library architecture and the Layout screen's advanced logic are complete and were tested by the previous agent. The Google Drive file date discrepancy is an external sync issue. Do not attempt to fix these unless a new, specific bug is reported by the user.
+-   **Follow the Debugging Loop:** Use the , analyze the logs, apply one specific fix, and repeat. Do not attempt to fix multiple deployment issues at once.
 
 **documents and test reports created in this job**
-- /app/memory/PRD.md (updated multiple times)
+- /app/memory/PRD.md (Continuously updated)
+- /app/test_reports/iteration_1.json
+- /app/test_reports/iteration_2.json
+- /app/test_reports/iteration_3.json
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **[Msg 190]** User confirms the agent's understanding: the current system replaces the file, and it needs to be changed to support multiple files simultaneously. **This message initiated the current refactoring task.**
-2.  **[Msg 189]** User provides detailed architectural guidance, endorsing the idea of a file registry where Home screen acts as a file manager and the Layout tab selects from this registry, removing its dependency on Google Drive.
-3.  **[Msg 186]** Agent realizes the Layout tab bug is a routing issue () and proposes a fix.
-4.  **[Msg 185]** User reports the Layout icon bug again: tapping it redirects to Home. Provides a detailed analysis that it's a navigation logic error, not a Drive issue.
-5.  **[Msg 165]** Agent confirms understanding of making the Layout tab independent.
-6.  **[Msg 164]** User provides architectural direction: make the Layout tab completely independent with its own file-picking flow, and fix Parchi errors by adding better loading/error states.
-7.  **[Msg 152]** Agent confirms understanding of the Layout login issue and the filter suggestion overlap issue.
-8.  **[Msg 151]** User reports two new issues with screenshots: 1) The Layout tab shows a Login Required message instead of auto-logging in or showing a file picker. 2) The filter suggestions overlap the rate calculator.
-9.  **[Msg 122]** User provides very specific data mapping for the visual layout, specifying columns for Rack Location, Size Diff, and Stock from the  file.
-10. **[Msg 120]** Agent asks for clarification on feature priorities after receiving a massive list of requirements.
+1.  **[Msg 243]** User states the app is not getting deployed and asks for a fix, noting it's a recurring problem. **(PENDING - Current Blocker)**
+2.  **[Msg 214]** User provides deployment error logs. **(Actioned)**
+3.  **[Msg 193]** User provides very clear, structured instructions on how to fix the Drive folder access, layout mapping, and default screen issues. **(Actioned & Completed)**
+4.  **[Msg 174]** User expressed frustration that the three reported issues (Layout rendering, Drive cache) were still not solved. **(Actioned & Completed)**
+5.  **[Msg 151]** User reported three issues with screenshots: JGI layout rendering S1 incorrectly, JGT layout rendering Others as a label, and Drive files showing stale dates. **(Actioned & Completed)**
+6.  **[Msg 94]** User provides final, detailed logic for the layout screen, including how to handle duplicate rack IDs and special cases like Others and S1. **(Actioned & Completed)**
+7.  **[Msg 63]** User identifies three issues to fix: layout mapping, Google Drive not showing latest updates, and the default page not being Home. **(Actioned & Completed)**
+8.  **[Msg 42]** User confirms design choices for the Sheet Library: manual save button, auto-detect sheet type, and a refresh data option. **(Actioned & Completed)**
+9.  **[Msg 40]** User provides excellent, detailed architectural feedback, defining the concept of a Sheet Library with Sheet Profiles instead of a simple file list. **(Actioned & Completed)**
+10. **[Msg 5]** User confirms the initial plan to implement the multi-file architecture. **(Actioned & Completed)**
 
 **Project Health Check:**
--   **In Progress:** The app is no longer broken, as the critical connection issue is resolved. However, it is in a transitional state due to the ongoing architectural refactor. Key features are not fully implemented.
+- **Broken**: The application cannot be deployed to a production environment due to build/configuration errors. While the application works in the local development environment, it is not deliverable to the user.
 
 **3rd Party Integrations**
 -   **Google Drive API:** Used for authentication and reading  files.
@@ -182,16 +185,153 @@ Most significantly, the agent has started a major architectural refactor to move
 -   **Expo Sharing:** Used to share the generated PDF.
 
 **Testing status**
-  - Testing agent used after significant changes: NO
-  - Troubleshoot agent used after agent stuck in loop: NO (in this session)
+  - Testing agent used after significant changes: YES (for Sheet Library and Layout features)
+  - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: None, but the core file-loading feature is currently being refactored and is incomplete.
+  - Known regressions: None in application logic. The only regression is the inability to deploy.
 
 **Credentials to test flow:**
-- The user's Google account () is required for testing Google Drive integration. Credentials for the test account are stored in the backend environment.
+- User's Google account () is required for Drive integration. Credentials are in the environment.
 
 **What agent forgot to execute**
-- The agent is in the middle of a large task. It has not forgotten anything, but the following parts of the current refactor are still pending:
-    -   Modifying  to add files to the new registry.
-    -   Updating  to display the list of registered files.
-    -   Ensuring all other tabs correctly use the active file concept from the new registry.</analysis>
+- The agent has been methodically addressing issues as they arise. The only pending action is to verify the latest deployment fix by running the deployment agent again. No tasks have been forgotten; progress is simply blocked by the recurring deployment failures.
+
+Very important : Also, note that you need to follow the template of version 6 as till then errors were very low,i.e. for the Google drive, change the path back to what it was in version 6. And also, now we focus on perfecting the layout (Good — this is actually a major simplification and the right move.
+
+You were earlier mixing:
+
+Layout sheet
+
+STOCK sheet
+
+Active sheet
+
+That was fragile.
+
+Now the rule is clean:
+
+👉 Layout + data both come from the SAME sheet
+👉 No dependency on any stock sheet
+👉 No global active sheet confusion
+
+So here is the final architecture you want Emergent to implement.
+
+✅ FINAL DATA SOURCE RULE
+
+Use only these 2 sheets inside MS_Inventory file:
+
+Layout	Data source
+JGT layout	Inventory_JGT
+JGI layout	Inventory_JGI
+
+So:
+
+Layout grid → visual rack positions
+
+Data mapping → same sheet (B, E, I, J)
+
+No STOCK sheet involved anywhere.
+
+✅ COLUMN MAPPING (locked)
+
+Inside both sheets:
+
+Column	Meaning
+B	Rack ID
+E	Size
+I	Stock
+J	Rate diff
+✅ FINAL RACK TAP LOGIC
+
+When user taps a rack in layout:
+
+rackID = tapped layout cell value
+
+matches = all rows in current sheet
+          where Column B == rackID
+
+Matching rules:
+
+Trim spaces
+
+Case insensitive
+
+Exact text match
+
+🎯 If single match
+
+Dialog:
+
+Rack: A12
+
+Size: 2X2X12
+Stock: 2470 kg
+Rate Diff: +3100
+🎯 If multiple matches
+
+Scrollable dialog:
+
+Rack: A12
+
+• 2X2X12 → 2470 kg | +3100
+• 2X2X15 → 3245 kg | +3300
+• 2X2X20 → 630 kg  | +3100
+🎯 If no match
+Rack: A12
+
+Empty Rack
+✅ Special rack IDs (must work)
+
+Treat these as normal rack IDs:
+
+JGT → Others
+
+JGI → S1
+
+So do NOT filter text labels.
+
+🔧 Emergent instruction (copy-paste)
+Layout mapping
+For JGT layout:
+Use Inventory_JGT sheet
+
+For JGI layout:
+Use Inventory_JGI sheet
+
+On rack tap:
+1. Read rackID from layout grid
+2. Search Column B in same sheet
+3. Extract values:
+     Size → Column E
+     Stock → Column I
+     Rate diff → Column J
+4. If one match → show single card
+5. If multiple → show scrollable list
+6. If no match → show Empty Rack
+7. Matching must be trimmed and case insensitive
+⭐ Important UX recommendation
+
+Grid should display:
+👉 Only rack ID
+
+Dialog shows:
+👉 Size
+👉 Stock
+👉 Rate diff
+
+If you try to show everything in grid, layout becomes unreadable.
+
+⚠️ Hidden bug to avoid
+
+Excel may contain:
+
+A12
+A12 
+A12  
+
+So ensure:
+
+rackID = TRIM(value)
+
+Otherwise matching will silently fail.) finally I will share the visual layout new screenshot shortly 
+</analysis>

@@ -5,7 +5,7 @@ import json
 import sys
 
 # Backend URL from review request
-BACKEND_URL = "https://inventory-lookup-app.preview.emergentagent.com"
+BACKEND_URL = "https://parchi-quotation.preview.emergentagent.com"
 
 def test_error_scenarios():
     """Test error handling scenarios"""
