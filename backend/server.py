@@ -153,22 +153,27 @@ async def create_session():
     logger.info(f"Created session: {session.session_id}")
     return {"session_id": session.session_id}
 
-# Helper to construct redirect URI dynamically
+# Helper to construct redirect URI dynamically from request headers
+# This ensures the correct domain is used in ANY environment (preview, production, etc.)
 def _get_redirect_uri(request: Request) -> str:
+    host = request.headers.get("X-Forwarded-Host") or request.headers.get("Host", "")
+    scheme = request.headers.get("X-Forwarded-Proto", "https")
+    if host and host != "localhost:8001":
+        return f"{scheme}://{host}/api/oauth/drive/callback"
     env_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI")
     if env_uri:
         return env_uri
-    host = request.headers.get("X-Forwarded-Host", request.headers.get("Host", "localhost:8001"))
-    scheme = request.headers.get("X-Forwarded-Proto", "https")
-    return f"{scheme}://{host}/api/oauth/drive/callback"
+    return f"https://{host}/api/oauth/drive/callback"
 
 def _get_frontend_url(request: Request) -> str:
+    host = request.headers.get("X-Forwarded-Host") or request.headers.get("Host", "")
+    scheme = request.headers.get("X-Forwarded-Proto", "https")
+    if host and host != "localhost:8001":
+        return f"{scheme}://{host}"
     env_url = os.getenv("FRONTEND_URL")
     if env_url:
         return env_url
-    host = request.headers.get("X-Forwarded-Host", request.headers.get("Host", "localhost:8001"))
-    scheme = request.headers.get("X-Forwarded-Proto", "https")
-    return f"{scheme}://{host}"
+    return f"https://{host}"
 
 # 2. START GOOGLE DRIVE OAUTH
 @api_router.get("/oauth/drive/connect")
