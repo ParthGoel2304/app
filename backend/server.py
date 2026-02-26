@@ -259,12 +259,12 @@ async def drive_callback(request: Request, code: str = Query(...), state: str = 
         logger.info(f"Drive credentials stored for session {session_id}")
         
         # Redirect to frontend with success
-        frontend_url = os.getenv("FRONTEND_URL")
+        frontend_url = _get_frontend_url(request)
         return RedirectResponse(url=f"{frontend_url}?drive_connected=true&session_id={session_id}")
     
     except Exception as e:
         logger.error(f"OAuth callback failed: {str(e)}")
-        frontend_url = os.getenv("FRONTEND_URL")
+        frontend_url = _get_frontend_url(request)
         return RedirectResponse(url=f"{frontend_url}?drive_connected=false&error={str(e)}")
 
 # 4. CHECK CONNECTION STATUS
