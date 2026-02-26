@@ -834,32 +834,71 @@ export default function FilterScreen() {
         visible={voiceModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setVoiceModalVisible(false)}
+        onRequestClose={() => { 
+          if (recordingRef.current) { recordingRef.current.stopAndUnloadAsync(); recordingRef.current = null; }
+          setVoiceModalVisible(false); 
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.voiceModal}>
             <Text style={styles.voiceModalTitle}>Voice Search (Hindi)</Text>
             <Text style={styles.voiceModalHint}>
-              Use your keyboard's voice input or type Hindi numbers
+              Tap the mic to record, then speak your size in Hindi{'\n'}
+              Example: "बहत्तर बहत्तर पच्चीस" will become 72X72X25
             </Text>
+
+            {/* Recording controls */}
+            <View style={styles.recordingControls}>
+              {!isRecording && !transcribing ? (
+                <TouchableOpacity style={styles.recordBtn} onPress={startRecording} data-testid="start-recording-btn">
+                  <Ionicons name="mic" size={36} color="#fff" />
+                  <Text style={styles.recordBtnLabel}>Tap to Record</Text>
+                </TouchableOpacity>
+              ) : isRecording ? (
+                <TouchableOpacity style={[styles.recordBtn, styles.recordBtnActive]} onPress={stopRecordingAndTranscribe} data-testid="stop-recording-btn">
+                  <View style={styles.recordingPulse}>
+                    <Ionicons name="stop" size={30} color="#fff" />
+                  </View>
+                  <Text style={styles.recordBtnLabel}>Recording... Tap to Stop</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.transcribingBox}>
+                  <ActivityIndicator size="large" color="#4285F4" />
+                  <Text style={styles.transcribingText}>Transcribing with Whisper...</Text>
+                </View>
+              )}
+            </View>
+
+            {voiceText ? (
+              <View style={styles.transcriptionResult}>
+                <Text style={styles.transcriptionLabel}>Transcription:</Text>
+                <Text style={styles.transcriptionText}>{voiceText}</Text>
+              </View>
+            ) : null}
+
+            {/* Manual input fallback */}
+            <Text style={styles.orDivider}>or type Hindi manually</Text>
             <TextInput
               style={styles.voiceInput}
               value={voiceText}
               onChangeText={setVoiceText}
               placeholder="बहत्तर बहत्तर पच्चीस"
               placeholderTextColor="#c0c0c0"
-              multiline
             />
             <View style={styles.voiceModalBtns}>
               <TouchableOpacity
                 style={styles.voiceCancelBtn}
-                onPress={() => setVoiceModalVisible(false)}
+                onPress={() => { 
+                  if (recordingRef.current) { recordingRef.current.stopAndUnloadAsync(); recordingRef.current = null; }
+                  setVoiceModalVisible(false); 
+                }}
               >
                 <Text style={styles.voiceCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.voiceConfirmBtn}
                 onPress={processVoiceInput}
+                disabled={!voiceText.trim()}
               >
                 <Text style={styles.voiceConfirmText}>Convert & Search</Text>
               </TouchableOpacity>
