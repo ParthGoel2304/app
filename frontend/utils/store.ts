@@ -87,14 +87,13 @@ export const clearSheetLibrary = (): void => {
 
 export const detectSheetType = (sheetName: string, fileName: string): SheetType => {
   const nameLower = sheetName.toLowerCase();
-  const fileLower = fileName.toLowerCase();
   
-  // Layout sheets
+  // Layout sheets - Inventory_JGT, Inventory_JGI, Inventory_Chart, etc.
   if (
     nameLower.includes('inventory_chart') ||
-    nameLower.includes('jgt') ||
-    nameLower.includes('jgi') ||
-    nameLower.includes('layout')
+    nameLower.includes('inventory_jgt') ||
+    nameLower.includes('inventory_jgi') ||
+    nameLower === 'layout'
   ) {
     return 'layout';
   }
@@ -102,14 +101,14 @@ export const detectSheetType = (sheetName: string, fileName: string): SheetType 
   // Stock sheets
   if (
     nameLower === 'stock' ||
-    nameLower.includes('stock') ||
-    nameLower.includes('inventory')
+    nameLower.includes('stock')
   ) {
-    // Check if file also has layout indicators
-    if (fileLower.includes('inventory_system') || fileLower.includes('ms_inventory')) {
-      return 'mixed';
-    }
     return 'stock';
+  }
+  
+  // Inventory sheets that are mixed
+  if (nameLower.includes('inventory')) {
+    return 'mixed';
   }
   
   // Default to stock for unknown
