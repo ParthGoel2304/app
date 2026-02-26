@@ -153,9 +153,26 @@ async def create_session():
     logger.info(f"Created session: {session.session_id}")
     return {"session_id": session.session_id}
 
+# Helper to construct redirect URI dynamically
+def _get_redirect_uri(request: Request) -> str:
+    env_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI")
+    if env_uri:
+        return env_uri
+    host = request.headers.get("X-Forwarded-Host", request.headers.get("Host", "localhost:8001"))
+    scheme = request.headers.get("X-Forwarded-Proto", "https")
+    return f"{scheme}://{host}/api/oauth/drive/callback"
+
+def _get_frontend_url(request: Request) -> str:
+    env_url = os.getenv("FRONTEND_URL")
+    if env_url:
+        return env_url
+    host = request.headers.get("X-Forwarded-Host", request.headers.get("Host", "localhost:8001"))
+    scheme = request.headers.get("X-Forwarded-Proto", "https")
+    return f"{scheme}://{host}"
+
 # 2. START GOOGLE DRIVE OAUTH
 @api_router.get("/oauth/drive/connect")
-async def connect_drive(session_id: str = Query(...)):
+async def connect_drive(request: Request, session_id: str = Query(...)):
     """Initiate Google Drive OAuth flow"""
     try:
         # Verify session exists
@@ -163,7 +180,7 @@ async def connect_drive(session_id: str = Query(...)):
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
-        redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI")
+        redirect_uri = _get_redirect_uri(request)
         
         flow = Flow.from_client_config(
             {
