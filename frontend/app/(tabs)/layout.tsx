@@ -375,7 +375,7 @@ export default function LayoutScreen() {
             {activeTab.toUpperCase()} Sheet Not Saved
           </Text>
           <Text style={s.centerSub}>
-            Save Inventory_{activeTab.toUpperCase()} from Home tab.
+            Save Inventory_{activeTab === 'jgt' ? 'Chart_JGT' : 'Chart_JGI'} from Home tab.
           </Text>
         </View>
       ) : !hasData ? (
