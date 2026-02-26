@@ -336,6 +336,7 @@ export default function HomeScreen() {
             style={styles.actionCard}
             onPress={() => router.navigate('/(tabs)/filter' as any)}
             disabled={!activeSheet || !activeSheet.data}
+            data-testid="quick-action-filter"
           >
             <View style={[styles.actionIcon, { backgroundColor: activeSheet?.data ? '#FEF0E6' : '#f5f5f5' }]}>
               <Ionicons name="funnel" size={26} color={activeSheet?.data ? '#FA7B17' : '#c0c0c0'} />
@@ -348,6 +349,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.navigate('/(tabs)/parchi' as any)}
+            data-testid="quick-action-parchi"
           >
             <View style={[styles.actionIcon, { backgroundColor: '#F0E6FE' }]}>
               <Ionicons name="document-text" size={26} color="#9C27B0" />
@@ -357,8 +359,31 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
+            onPress={() => router.push('/sheetview' as any)}
+            data-testid="quick-action-sheetview"
+          >
+            <View style={[styles.actionIcon, { backgroundColor: '#E3F2FD' }]}>
+              <Ionicons name="eye" size={26} color="#1565C0" />
+            </View>
+            <Text style={styles.actionTitle}>Sheet View</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.navigate('/(tabs)/layout' as any)}
+            data-testid="quick-action-layout"
+          >
+            <View style={[styles.actionIcon, { backgroundColor: '#E6F4EA' }]}>
+              <Ionicons name="grid" size={26} color="#34A853" />
+            </View>
+            <Text style={styles.actionTitle}>Layout</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
             onPress={() => router.navigate('/(tabs)/inventory' as any)}
             disabled={!activeSheet || !activeSheet.data}
+            data-testid="quick-action-inventory"
           >
             <View style={[styles.actionIcon, { backgroundColor: activeSheet?.data ? '#E8F0FE' : '#f5f5f5' }]}>
               <Ionicons name="cube" size={26} color={activeSheet?.data ? '#4285F4' : '#c0c0c0'} />
@@ -366,16 +391,6 @@ export default function HomeScreen() {
             <Text style={[styles.actionTitle, !activeSheet?.data && styles.actionTitleDisabled]}>
               Inventory
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.navigate('/(tabs)/layout' as any)}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#E6F4EA' }]}>
-              <Ionicons name="grid" size={26} color="#34A853" />
-            </View>
-            <Text style={styles.actionTitle}>Layout</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
