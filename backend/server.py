@@ -212,11 +212,11 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
 
 # 3. HANDLE OAUTH CALLBACK
 @api_router.get("/oauth/drive/callback")
-async def drive_callback(code: str = Query(...), state: str = Query(...)):
+async def drive_callback(request: Request, code: str = Query(...), state: str = Query(...)):
     """Handle Google Drive OAuth callback"""
     try:
         session_id = state
-        redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI")
+        redirect_uri = _get_redirect_uri(request)
         
         flow = Flow.from_client_config(
             {
