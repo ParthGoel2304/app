@@ -1066,9 +1066,9 @@ const styles = StyleSheet.create({
   voiceInput: {
     backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e0e0e0',
     borderRadius: 12, padding: 16, fontSize: 18, color: '#202124',
-    minHeight: 80, textAlignVertical: 'top',
+    minHeight: 50, textAlignVertical: 'top',
   },
-  voiceModalBtns: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  voiceModalBtns: { flexDirection: 'row', gap: 12, marginTop: 16 },
   voiceCancelBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 12,
     borderWidth: 1, borderColor: '#e0e0e0', alignItems: 'center',
