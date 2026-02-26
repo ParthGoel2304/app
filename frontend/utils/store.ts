@@ -86,28 +86,26 @@ export const clearSheetLibrary = (): void => {
 // ─── Sheet Type Detection ───────────────────────────────────────────────────
 
 export const detectSheetType = (sheetName: string, fileName: string): SheetType => {
-  const nameLower = sheetName.toLowerCase();
+  // Normalize: lowercase and collapse spaces/underscores for matching
+  const norm = sheetName.toLowerCase().replace(/[\s_]+/g, '');
   
-  // Layout sheets - Inventory_JGT, Inventory_JGI, Inventory_Chart, etc.
+  // Layout sheets: Inventory_Chart_JGT, Inventory Chart_JGI, etc.
   if (
-    nameLower.includes('inventory_chart') ||
-    nameLower.includes('inventory_jgt') ||
-    nameLower.includes('inventory_jgi') ||
-    nameLower === 'layout'
+    norm.includes('chartjgt') ||
+    norm.includes('chartjgi') ||
+    norm.includes('inventorychart') ||
+    norm === 'layout'
   ) {
     return 'layout';
   }
   
   // Stock sheets
-  if (
-    nameLower === 'stock' ||
-    nameLower.includes('stock')
-  ) {
+  if (norm === 'stock' || norm.includes('stock')) {
     return 'stock';
   }
   
   // Inventory sheets that are mixed
-  if (nameLower.includes('inventory')) {
+  if (norm.includes('inventory')) {
     return 'mixed';
   }
   
