@@ -399,7 +399,7 @@ async def read_excel_data(
         file_stream.seek(0)
         
         # Load workbook
-        workbook = openpyxl.load_workbook(file_stream, read_only=True, data_only=True)
+        workbook = openpyxl.load_workbook(file_stream, data_only=True)
         
         if sheet_name not in workbook.sheetnames:
             raise HTTPException(status_code=404, detail=f"Sheet '{sheet_name}' not found")
