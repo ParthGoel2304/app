@@ -11,7 +11,10 @@ import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import axios from 'axios';
 import { getExcelStore, getColOffset } from '../../utils/store';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 // ─── Hindi number conversion ──────────────────────────────────────────────────
 const H: Record<number, string> = {
