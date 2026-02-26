@@ -260,8 +260,8 @@ async def check_drive_status(session_id: str = Query(...)):
         "session_id": session_id
     }
 
-# Office folder ID - only fetch files from this folder
-OFFICE_FOLDER_ID = "1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH"
+# Office folder ID - loaded from environment variable
+OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH')
 
 # 5. LIST EXCEL FILES FROM DRIVE (from specific folder only)
 @api_router.get("/drive/files")
