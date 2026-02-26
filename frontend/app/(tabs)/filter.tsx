@@ -268,17 +268,76 @@ export default function FilterScreen() {
     setShowSuggestions(false);
   };
 
-  // Voice search handler (simulated - will use device speech)
-  const startVoiceSearch = () => {
+  // Voice search handler - real recording with Whisper STT
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+
+  const startVoiceSearch = async () => {
     setVoiceModalVisible(true);
     setVoiceText('');
-    // Note: expo-speech-recognition requires native build
-    // For now, show modal where user can type Hindi or use device keyboard voice
-    Alert.alert(
-      'Voice Search',
-      'Tap the microphone on your keyboard to speak in Hindi.\n\nExample: "बहत्तर बहत्तर पच्चीस" → 72X72X25',
-      [{ text: 'OK' }]
-    );
+    setIsRecording(false);
+    setTranscribing(false);
+  };
+
+  const startRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Microphone permission is needed for voice search');
+        return;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to start recording');
+    }
+  };
+
+  const stopRecordingAndTranscribe = async () => {
+    if (!recordingRef.current) return;
+    setIsRecording(false);
+    setTranscribing(true);
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+
+      if (!uri) { setTranscribing(false); return; }
+
+      // Send to backend for Whisper transcription
+      const formData = new FormData();
+      formData.append('file', {
+        uri,
+        type: 'audio/m4a',
+        name: 'recording.m4a',
+      } as any);
+      formData.append('language', 'hi');
+
+      const res = await axios.post(`${BACKEND_URL}/api/voice/transcribe`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000,
+      });
+
+      const transcribed = res.data.text || '';
+      setVoiceText(transcribed);
+      // Auto-convert Hindi text to size format
+      if (transcribed.trim()) {
+        const converted = hindiToSize(transcribed);
+        setSizeInput(converted);
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || 'Transcription failed';
+      Alert.alert('Transcription Error', msg);
+      // Fallback: let user type manually
+    } finally {
+      setTranscribing(false);
+    }
   };
 
   const processVoiceInput = () => {
