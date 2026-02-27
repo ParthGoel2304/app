@@ -307,9 +307,38 @@ async def drive_callback(request: Request, code: str = Query(...), state: str = 
         
         logger.info(f"Drive credentials stored for session {session_id}")
         
-        # Redirect to frontend with success
-        frontend_url = _get_frontend_url(request)
-        return RedirectResponse(url=f"{frontend_url}?drive_connected=true&session_id={session_id}")
+        # Return a simple HTML page instead of redirect (fixes 404 on deployed apps)
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Connected!</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+        body {{ font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #fff; text-align: center; }}
+        .box {{ padding: 40px; }}
+        .check {{ font-size: 64px; }}
+        h1 {{ font-size: 24px; margin: 16px 0 8px; }}
+        p {{ color: #9aa0a6; font-size: 14px; }}
+        </style>
+        </head>
+        <body>
+        <div class="box">
+        <div class="check">&#10004;</div>
+        <h1>Google Drive Connected!</h1>
+        <p>You can close this window and return to the app.</p>
+        <p style="margin-top:24px;font-size:12px;color:#5f6368;">Session: {session_id}</p>
+        </div>
+        <script>
+        // Try to redirect to the app after 2 seconds
+        setTimeout(function() {{
+            try {{ window.location.href = '{frontend_url}?drive_connected=true&session_id={session_id}'; }} catch(e) {{}}
+        }}, 2000);
+        </script>
+        </body>
+        </html>
+        """
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html)
     
     except Exception as e:
         logger.error(f"OAuth callback failed: {str(e)}")
