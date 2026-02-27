@@ -257,6 +257,8 @@ async def manual_drive_connect(data: ManualTokenConnect):
         logger.info(f"Drive connected via manual code for session {data.session_id}")
         return {"status": "connected", "session_id": data.session_id}
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Manual connect failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Manual connect failed: {str(e)}")
