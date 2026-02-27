@@ -198,6 +198,8 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
         logger.info(f"Drive OAuth initiated for session {session_id}")
         return {"authorization_url": authorization_url}
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to initiate OAuth: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to initiate OAuth: {str(e)}")
