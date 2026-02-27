@@ -17,26 +17,24 @@ Inventory managers / warehouse staff, primarily Hindi-speaking, using the app on
 - Users add Excel files from Google Drive (from Office folder ID: 1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH)
 - Users save sheet "profiles" (file name, sheet name, range, cached data) to a persistent library
 - Home screen displays saved profiles and allows setting one as "active"
-- Auto-detect sheet type: layout (Inventory_Chart_JGT/JGI), stock (STOCK), mixed
 
-### Data Source Rule (Layout)
-- JGT layout -> `Inventory_Chart_JGT` sheet
-- JGI layout -> `Inventory Chart_JGI` sheet (note: space not underscore)
-- Column B=Rack ID, E=Size, I=Stock, J=Rate Diff
-- Trim + case-insensitive matching
+### Google OAuth Connection Flow (DUAL APPROACH)
+- **Primary:** Standard browser-based OAuth flow with hardcoded production redirect URI
+- **Fallback (NEW):** Manual authorization code entry — if the OAuth callback returns 404 on deployed app, user can copy the `code=` parameter from the browser URL bar and paste it into the app
+- Callback endpoint now returns HTML page ("Connected!") instead of redirect, preventing 404 issues
+- App polls `/api/drive/status` in background after opening auth URL
+- Backend endpoint `POST /api/oauth/drive/manual-connect` accepts session_id + auth_code
 
-### Layout Version Management (NEW)
+### Layout Version Management
 - Users can create, edit, save, and load multiple versions of JGT and JGI layouts
 - Default layouts are hardcoded; custom versions stored in MongoDB
 - Edit mode allows modifying rack IDs, adding/removing rows/sections
-- Version panel shows all saved versions with load/delete options
 - Backend CRUD: POST/GET/PUT/DELETE /api/layouts/*
 
-### Voice Search with Whisper STT (IMPROVED)
+### Voice Search with Whisper STT
 - Real audio recording via expo-av on mobile
-- Audio sent to backend -> OpenAI Whisper (whisper-1) for Hindi transcription
-- Transcribed text auto-converted to size format (Hindi numbers -> dimensions)
-- Manual text input fallback still available
+- Audio sent to backend -> OpenAI Whisper for Hindi transcription
+- Manual text input fallback available
 
 ## Navigation
 Bottom tabs: Home, Filter, Parchi, Inventory, Layout
@@ -48,57 +46,31 @@ Bottom tabs: Home, Filter, Parchi, Inventory, Layout
 - `/api/drive/files` - List Excel files from Office folder
 - `/api/drive/file/{file_id}/sheets` - Get sheet names
 - `/api/excel/read` - Read Excel data for a range
-- `/api/oauth/drive/connect` - Initiate Google OAuth (hardcoded production URI)
-- `/api/oauth/drive/callback` - OAuth callback handler
+- `/api/oauth/drive/connect` - Initiate Google OAuth
+- `/api/oauth/drive/callback` - OAuth callback (returns HTML, not redirect)
+- `/api/oauth/drive/manual-connect` - Manual auth code exchange (NEW)
 - `/api/layouts/save` - Save layout version (POST)
 - `/api/layouts/list` - List layout versions (GET)
 - `/api/layouts/{layout_id}` - Get/Update/Delete layout version
 - `/api/voice/transcribe` - Transcribe audio with Whisper STT (POST)
 
-## Completed Features (as of 26 Feb 2026)
-- [x] Google OAuth integration for Drive access
+## Completed Features (as of 27 Feb 2026)
+- [x] Google OAuth with dual approach (browser redirect + manual code fallback)
+- [x] OAuth callback returns HTML page instead of redirect
 - [x] Sheet Library system (add, save, switch profiles)
 - [x] Visual Layout screen (JGT + JGI grids with rack tap dialog)
-- [x] Layout detects Inventory_Chart_JGT and Inventory Chart_JGI sheet names
-- [x] Sheet View screen (STOCK vertical pager, 24 rows/page, all cols fit)
-- [x] Home Quick Actions (5 actions: Filter, Parchi, Sheet View, Layout, Inventory)
-- [x] Backend: Office folder file listing with temp file filtering
-- [x] Backend: Excel read with full range support
-- [x] OAuth redirect URI hardcoded to production (Option B per user request)
-- [x] Layout editability: save/load multiple versions of JGT/JGI (MongoDB backed)
-- [x] Voice search improved with OpenAI Whisper STT via emergentintegrations
-- [x] Backend layout CRUD (13/13 tests passed)
+- [x] Layout editability: save/load multiple versions of JGT/JGI
+- [x] Sheet View screen (STOCK vertical pager, 24 rows/page)
+- [x] Voice search with OpenAI Whisper STT
+- [x] Dark theme login page with manual code fallback UI
+- [x] Backend layout CRUD + voice transcription endpoints
+- [x] Deployment health check passed
 
 ## Upcoming Tasks
-- [ ] (P0) Smart Filter - Advanced category shortcuts + keyword search refinement
+- [ ] (P0) Smart Filter - Category shortcuts + keyword search
 - [ ] (P1) Parchi - Full calculation logic, dynamic charges, GST
-- [ ] (P2) Inventory Tab - Master stock list view with timestamp
-- [ ] (P2) Voice Output - "Speak" button on results
-- [ ] (P2) Parchi Log - View/manage saved Parchis
-- [ ] (P2) Layout Builder - Visual rack config (beyond current edit mode)
-
-## File Structure
-```
-/app
-├── backend/
-│   ├── .env (MONGO_URL, DB_NAME, GOOGLE_CLIENT_ID/SECRET, OFFICE_FOLDER_ID, FRONTEND_URL, GOOGLE_DRIVE_REDIRECT_URI, EMERGENT_LLM_KEY)
-│   ├── server.py
-│   ├── requirements.txt
-│   └── tests/
-│       └── test_layout_voice.py
-└── frontend/
-    ├── .env (EXPO_PUBLIC_BACKEND_URL)
-    ├── package.json
-    ├── app/
-    │   ├── _layout.tsx
-    │   ├── (tabs)/
-    │   │   ├── _layout.tsx
-    │   │   ├── home.tsx
-    │   │   ├── filter.tsx (Whisper voice search)
-    │   │   ├── layout.tsx (Version management + edit mode)
-    │   │   ├── parchi.tsx
-    │   │   └── inventory.tsx
-    │   └── sheetview.tsx
-    └── utils/
-        └── store.ts
-```
+- [ ] (P2) Inventory Tab - Master stock list with timestamp
+- [ ] (P2) Voice Output - "Speak" button
+- [ ] (P2) Parchi Log screen
+- [ ] (P2) Layout Builder (advanced visual config)
+- [ ] (P3) Refactor parchi.tsx (900+ lines)
