@@ -202,6 +202,63 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
         logger.error(f"Failed to initiate OAuth: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to initiate OAuth: {str(e)}")
 
+# Manual token connection (bypasses redirect flow entirely)
+class ManualTokenConnect(BaseModel):
+    session_id: str
+    auth_code: str
+
+@api_router.post("/oauth/drive/manual-connect")
+async def manual_drive_connect(data: ManualTokenConnect):
+    """Connect Drive by manually providing the authorization code"""
+    try:
+        session = await db.user_sessions.find_one({"session_id": data.session_id})
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        redirect_uri = os.environ['GOOGLE_DRIVE_REDIRECT_URI']
+        
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [redirect_uri]
+                }
+            },
+            scopes=None,
+            redirect_uri=redirect_uri
+        )
+        
+        flow.fetch_token(code=data.auth_code)
+        credentials = flow.credentials
+        
+        creds_data = {
+            "session_id": data.session_id,
+            "access_token": credentials.token,
+            "refresh_token": credentials.refresh_token,
+            "token_uri": credentials.token_uri,
+            "client_id": credentials.client_id,
+            "client_secret": credentials.client_secret,
+            "scopes": credentials.scopes,
+            "expiry": credentials.expiry.isoformat() if credentials.expiry else None,
+            "updated_at": datetime.now(timezone.utc)
+        }
+        
+        await db.drive_credentials.update_one(
+            {"session_id": data.session_id},
+            {"$set": creds_data},
+            upsert=True
+        )
+        
+        logger.info(f"Drive connected via manual code for session {data.session_id}")
+        return {"status": "connected", "session_id": data.session_id}
+    
+    except Exception as e:
+        logger.error(f"Manual connect failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Manual connect failed: {str(e)}")
+
 # 3. HANDLE OAUTH CALLBACK
 @api_router.get("/oauth/drive/callback")
 async def drive_callback(request: Request, code: str = Query(...), state: str = Query(...)):
