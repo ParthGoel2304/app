@@ -342,8 +342,29 @@ async def drive_callback(request: Request, code: str = Query(...), state: str = 
     
     except Exception as e:
         logger.error(f"OAuth callback failed: {str(e)}")
-        frontend_url = _get_frontend_url(request)
-        return RedirectResponse(url=f"{frontend_url}?drive_connected=false&error={str(e)}")
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Connection Failed</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+        body {{ font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #fff; text-align: center; }}
+        .box {{ padding: 40px; }}
+        h1 {{ font-size: 20px; color: #EA4335; }}
+        p {{ color: #9aa0a6; font-size: 14px; max-width: 300px; }}
+        </style>
+        </head>
+        <body>
+        <div class="box">
+        <h1>Connection Failed</h1>
+        <p>{str(e)}</p>
+        <p style="margin-top:16px;">Please close this window and try again.</p>
+        </div>
+        </body>
+        </html>
+        """
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html, status_code=400)
 
 # 4. CHECK CONNECTION STATUS
 @api_router.get("/drive/status")
