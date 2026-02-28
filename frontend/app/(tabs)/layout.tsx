@@ -12,6 +12,7 @@ import {
   getSheetLibrary, setSheetLibrary, updateSheetProfile,
   getColOffset, SheetProfile
 } from '../../utils/store';
+import { shortItemName } from '../../utils/conversions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
