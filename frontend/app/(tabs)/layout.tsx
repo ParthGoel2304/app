@@ -397,11 +397,21 @@ export default function LayoutScreen() {
     const entries = getRackEntries(text, currentMap);
     const stock = totalStock(entries);
     const bg = entries.length > 0 ? stockColor(stock) : '#E8E8E8';
+    const matched = isSearchMatch(text);
+    const shortNames = compactMode ? getShortNames(text) : [];
     return (
-      <TouchableOpacity key={idx} style={[s.rackCell, { backgroundColor: bg }]}
+      <TouchableOpacity key={idx} style={[s.rackCell, { backgroundColor: bg }, matched && s.rackCellHighlight]}
         onPress={() => handleRackTap(text)} activeOpacity={0.7} data-testid={`rack-cell-${text}`}>
         <Text style={s.rackCode}>{text}</Text>
-        {entries.length > 1 && (
+        {compactMode && shortNames.length > 0 && (
+          <View style={s.shortNamesBox}>
+            {shortNames.slice(0, 2).map((sn, i) => (
+              <Text key={i} style={s.shortNameText} numberOfLines={1}>{sn}</Text>
+            ))}
+            {shortNames.length > 2 && <Text style={s.shortNameMore}>+{shortNames.length - 2}</Text>}
+          </View>
+        )}
+        {entries.length > 1 && !compactMode && (
           <View style={s.multiDot}><Text style={s.multiDotText}>{entries.length}</Text></View>
         )}
       </TouchableOpacity>
