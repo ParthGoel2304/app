@@ -81,6 +81,10 @@ export default function LayoutScreen() {
   const [saveNameModal, setSaveNameModal] = useState(false);
   const [saveName, setSaveName] = useState('');
 
+  // Rack search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [compactMode, setCompactMode] = useState(true);
+
   useFocusEffect(useCallback(() => { loadProfiles(); }, []));
 
   const loadProfiles = async () => {
