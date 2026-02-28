@@ -1,76 +1,107 @@
 # Smart Excel Reader — Product Requirements Document
 
 ## Problem Statement
-Build a mobile-first inventory lookup and quotation app called "Smart Excel Reader" that connects to Google Drive to read Excel files, manage a sheet library, provide visual warehouse layouts, and generate quotations (Parchis).
-
-## Target User
-Inventory managers / warehouse staff, primarily Hindi-speaking, using the app on mobile.
+Build a mobile-first inventory lookup and quotation app that connects to Google Drive to read Excel files, manage a sheet library, provide visual warehouse layouts, weight/length calculators, and purchase order management.
 
 ## Tech Stack
-- **Frontend:** React Native (Expo), Expo Router, Zustand state management
+- **Frontend:** React Native (Expo), Expo Router, Zustand
 - **Backend:** FastAPI (Python), MongoDB
-- **3rd Party:** Google Drive API, OpenAI Whisper (via emergentintegrations), Expo Print/Sharing
-- **Deployment:** Emergent Platform (Kubernetes), EAS Build for Android
+- **3rd Party:** Google Drive API, OpenAI Whisper (emergentintegrations)
 
-## Core Architecture
-### Sheet Library System
-- Users add Excel files from Google Drive (from Office folder ID: 1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH)
-- Users save sheet "profiles" (file name, sheet name, range, cached data) to a persistent library
-- Home screen displays saved profiles and allows setting one as "active"
+## Navigation (Bottom Tabs)
+| Tab | Screen | Description |
+|-----|--------|-------------|
+| Home | home.tsx | Library management + Quick Actions |
+| Purchase | purchase.tsx | Purchase order from In Demand sheets |
+| Calculator | calculator.tsx | Weight calculator + Length/NB-OD converter |
+| Inventory | inventory.tsx | Master stock list |
+| Layout | layout.tsx | Visual warehouse rack layout |
 
-### Google OAuth Connection Flow (DUAL APPROACH)
-- **Primary:** Standard browser-based OAuth flow with hardcoded production redirect URI
-- **Fallback (NEW):** Manual authorization code entry — if the OAuth callback returns 404 on deployed app, user can copy the `code=` parameter from the browser URL bar and paste it into the app
-- Callback endpoint now returns HTML page ("Connected!") instead of redirect, preventing 404 issues
-- App polls `/api/drive/status` in background after opening auth URL
-- Backend endpoint `POST /api/oauth/drive/manual-connect` accepts session_id + auth_code
+**Hidden (via Quick View):** Filter (filter.tsx), Parchi (parchi.tsx), Sheet View (sheetview.tsx)
 
-### Layout Version Management
-- Users can create, edit, save, and load multiple versions of JGT and JGI layouts
-- Default layouts are hardcoded; custom versions stored in MongoDB
-- Edit mode allows modifying rack IDs, adding/removing rows/sections
-- Backend CRUD: POST/GET/PUT/DELETE /api/layouts/*
+## Completed Features (as of 28 Feb 2026)
 
-### Voice Search with Whisper STT
-- Real audio recording via expo-av on mobile
-- Audio sent to backend -> OpenAI Whisper for Hindi transcription
-- Manual text input fallback available
-
-## Navigation
-Bottom tabs: Home, Filter, Parchi, Inventory, Layout
-
-## Key API Endpoints
-- `/api/` - Health check
-- `/api/session/create` - Create user session
-- `/api/drive/status` - Check Google Drive connection
-- `/api/drive/files` - List Excel files from Office folder
-- `/api/drive/file/{file_id}/sheets` - Get sheet names
-- `/api/excel/read` - Read Excel data for a range
-- `/api/oauth/drive/connect` - Initiate Google OAuth
-- `/api/oauth/drive/callback` - OAuth callback (returns HTML, not redirect)
-- `/api/oauth/drive/manual-connect` - Manual auth code exchange (NEW)
-- `/api/layouts/save` - Save layout version (POST)
-- `/api/layouts/list` - List layout versions (GET)
-- `/api/layouts/{layout_id}` - Get/Update/Delete layout version
-- `/api/voice/transcribe` - Transcribe audio with Whisper STT (POST)
-
-## Completed Features (as of 27 Feb 2026)
+### Core
 - [x] Google OAuth with dual approach (browser redirect + manual code fallback)
-- [x] OAuth callback returns HTML page instead of redirect
 - [x] Sheet Library system (add, save, switch profiles)
-- [x] Visual Layout screen (JGT + JGI grids with rack tap dialog)
-- [x] Layout editability: save/load multiple versions of JGT/JGI
-- [x] Sheet View screen (STOCK vertical pager, 24 rows/page)
-- [x] Voice search with OpenAI Whisper STT
-- [x] Dark theme login page with manual code fallback UI
-- [x] Backend layout CRUD + voice transcription endpoints
-- [x] Deployment health check passed
+- [x] Home Quick Actions: Purchase, Calculator, Layout, Smart Filter, Parchi, Sheet View
+
+### Weight Calculator (NEW)
+- [x] Shape-first flow: Square / Rectangle / Round
+- [x] Unit-first selection: dimension unit (mm/inch), thickness unit (mm/inch, default mm)
+- [x] Input fields with unit labels (e.g., "Side (inch)")
+- [x] Length unit picker: mm / inch / m / feet
+- [x] Internal normalization: all dimensions → mm, length → meters
+- [x] Weight formulas: Square, Rectangle, Round (density = 0.00785)
+- [x] Share result via native share sheet
+
+### Length / NB-OD Converter (NEW)
+- [x] 7 length units: mm, cm, m, inch, feet, NB, OD
+- [x] NB↔OD pipe standard lookup table (11 entries: 15-150 NB)
+- [x] Nearest NB suggestion from OD input
+- [x] Convert button with result display
+- [x] NB/OD reference table in UI
+
+### Purchase Tab (NEW)
+- [x] Reads from saved library file (no file picker)
+- [x] Category selector: HR / Apollo / Local → loads respective "In Demand" sheet
+- [x] Table: checkbox, Item, Current, Ideal, Order (editable)
+- [x] Highlight items where Current < Ideal (red tint)
+- [x] "Show only items needing order" toggle
+- [x] Selected items horizontal chip panel
+- [x] Export: Share List (native share) + Export PDF
+- [x] Load once, cache in memory, switch category = switch view
+
+### Layout Improvements (NEW)
+- [x] Rack search bar at top (real-time filtering, highlight match)
+- [x] Short item names on rack cards (e.g., SDF(2.5MM), MSS(3MM), P(40NB))
+- [x] Compact/Detail mode toggle
+- [x] Auto-abbreviation: first letters of words + thickness notation
+- [x] Edit mode + version management (save/load/delete custom layouts)
+
+### Central Conversion Engine (utils/conversions.ts)
+- [x] NB_OD_TABLE: 15→21.34, 20→26.67, 25→33.40, 32→42.16, 40→48.26, 50→60.33, 65→73.03, 80→88.90, 100→114.30, 125→139.70, 150→168.30
+- [x] toMM/fromMM: convert any unit through mm base
+- [x] calcWeight: handles all 3 shapes with proper unit conversion
+- [x] shortItemName: auto-generates abbreviated display names
+- [x] Reusable across Calculator, Filter, Layout
+
+### Other Completed
+- [x] Visual Layout (JGT + JGI grids, rack tap dialog, stock coloring)
+- [x] Voice search with OpenAI Whisper STT (Hindi)
+- [x] Sheet View (STOCK vertical pager, 24 rows/page)
+- [x] OAuth callback returns HTML page (fixes 404 on deployed apps)
+- [x] Dark theme throughout
 
 ## Upcoming Tasks
-- [ ] (P0) Smart Filter - Category shortcuts + keyword search
+- [ ] (P0) Smart Filter - Category shortcuts (Local, HR) + keyword search
 - [ ] (P1) Parchi - Full calculation logic, dynamic charges, GST
-- [ ] (P2) Inventory Tab - Master stock list with timestamp
-- [ ] (P2) Voice Output - "Speak" button
+- [ ] (P2) Voice Output - "Speak" button on results
 - [ ] (P2) Parchi Log screen
-- [ ] (P2) Layout Builder (advanced visual config)
 - [ ] (P3) Refactor parchi.tsx (900+ lines)
+
+## File Structure
+```
+/app
+├── backend/
+│   ├── server.py (OAuth, Drive, Layout CRUD, Voice transcribe)
+│   ├── .env
+│   └── requirements.txt
+└── frontend/
+    ├── app/
+    │   ├── _layout.tsx (Root stack)
+    │   ├── login.tsx (OAuth + manual code fallback)
+    │   ├── (tabs)/
+    │   │   ├── _layout.tsx (5 visible + 4 hidden tabs)
+    │   │   ├── home.tsx (Library + 6 Quick Actions)
+    │   │   ├── purchase.tsx (Purchase orders)
+    │   │   ├── calculator.tsx (Weight + Length/NB-OD)
+    │   │   ├── inventory.tsx
+    │   │   ├── layout.tsx (Search + short names + versions)
+    │   │   ├── filter.tsx (hidden tab)
+    │   │   └── parchi.tsx (hidden tab)
+    │   └── sheetview.tsx
+    └── utils/
+        ├── store.ts (Zustand + AsyncStorage)
+        └── conversions.ts (Central engine)
+```
