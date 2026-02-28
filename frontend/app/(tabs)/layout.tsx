@@ -756,6 +756,12 @@ const s = StyleSheet.create({
   versionText: { fontSize: 12, color: '#9aa0a6', fontWeight: '500' },
   editBadge: { backgroundColor: '#FA7B17', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginLeft: 8 },
   editBadgeText: { fontSize: 9, fontWeight: '700', color: '#fff' },
+  // Search bar
+  searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#16213e', gap: 8 },
+  searchInput: { flex: 1, backgroundColor: '#0f3460', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#fff' },
+  searchDivider: { width: 1, height: 20, backgroundColor: '#0f3460' },
+  compactToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, backgroundColor: '#0f3460' },
+  compactToggleText: { fontSize: 10, fontWeight: '600', color: '#9aa0a6' },
   // Legend
   legend: { flexDirection: 'row', justifyContent: 'center', paddingVertical: 8, gap: 14, backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
