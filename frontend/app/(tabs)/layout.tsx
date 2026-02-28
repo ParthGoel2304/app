@@ -784,6 +784,10 @@ const s = StyleSheet.create({
   labelText: { fontSize: 9, fontWeight: '600', color: '#7B1FA2' },
   rackCell: { width: CW, height: CH, marginRight: 3, borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)' },
   rackCode: { fontSize: 10, fontWeight: '700', color: '#202124' },
+  shortNamesBox: { marginTop: 1 },
+  shortNameText: { fontSize: 7, color: '#5f6368', fontWeight: '500', lineHeight: 9 },
+  shortNameMore: { fontSize: 6, color: '#4285F4', fontWeight: '700' },
+  rackCellHighlight: { borderColor: '#FA7B17', borderWidth: 2 },
   multiDot: { position: 'absolute', top: 2, right: 2, backgroundColor: '#4285F4', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 },
   multiDotText: { fontSize: 7, fontWeight: '700', color: '#fff' },
   // Edit mode
