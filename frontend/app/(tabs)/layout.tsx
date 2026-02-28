@@ -160,6 +160,18 @@ export default function LayoutScreen() {
     } finally { setLoading(false); }
   };
 
+  const isSearchMatch = (text: string) => {
+    if (!searchQuery.trim()) return false;
+    const q = searchQuery.trim().toLowerCase();
+    return text.toLowerCase().includes(q);
+  };
+
+  const getShortNames = (rackID: string): string[] => {
+    const entries = getRackEntries(rackID, currentMap);
+    if (entries.length === 0) return [];
+    return entries.map(e => shortItemName(e.size)).filter(s => s.length > 0);
+  };
+
   // Rack lookup
   const getRackEntries = (rackID: string, map: Map<string, RackEntry[]>): RackEntry[] => {
     const key = rackID.replace(/\(.*\)/g, '').trim().toUpperCase();
