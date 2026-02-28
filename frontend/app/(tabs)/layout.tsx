@@ -477,6 +477,31 @@ export default function LayoutScreen() {
         {editMode && <View style={s.editBadge}><Text style={s.editBadgeText}>EDITING</Text></View>}
       </View>
 
+      {/* Search Bar */}
+      {!editMode && (
+        <View style={s.searchBar}>
+          <Ionicons name="search" size={16} color="#9aa0a6" />
+          <TextInput
+            style={s.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search rack (e.g. R1.1)"
+            placeholderTextColor="#5f6368"
+            data-testid="rack-search-input"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color="#9aa0a6" />
+            </TouchableOpacity>
+          )}
+          <View style={s.searchDivider} />
+          <TouchableOpacity onPress={() => setCompactMode(!compactMode)} style={s.compactToggle}>
+            <Ionicons name={compactMode ? 'list' : 'apps'} size={16} color={compactMode ? '#4285F4' : '#9aa0a6'} />
+            <Text style={[s.compactToggleText, compactMode && { color: '#4285F4' }]}>{compactMode ? 'Compact' : 'Detail'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Legend (only in view mode) */}
       {!editMode && (
         <View style={s.legend}>
