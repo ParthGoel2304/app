@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Dimensions, RefreshControl
+  ActivityIndicator, Alert, Dimensions, RefreshControl, TextInput
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -15,7 +15,7 @@ const ROW_NUM_W = 32;
 
 // Sales FY 25-26 file config
 const SALES_FILE_NAME = 'Sales FY 25-26';
-const SALES_SHEET_NAME = 'Sales';
+const SALES_SHEET_NAME = 'Debtors'; // Updated to use Debtors sheet
 
 export default function SalesTab() {
   const [loading, setLoading] = useState(true);
@@ -25,6 +25,10 @@ export default function SalesTab() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [fileInfo, setFileInfo] = useState<{ name: string; modified: string } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => { init(); }, []);
 
@@ -60,7 +64,7 @@ export default function SalesTab() {
       }
 
       // First, find the Sales FY 25-26 file
-      const filesRes = await axios.get(`${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=false`);
+      const filesRes = await axios.get(`${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=true`);
       const allFiles = filesRes.data.files || [];
       
       // Find the sales file (match partial name)
@@ -83,7 +87,7 @@ export default function SalesTab() {
         })
       });
 
-      // Fetch the Sales sheet data
+      // Fetch the Debtors sheet data
       const dataRes = await axios.get(
         `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${salesFile.file_id}&sheet_name=${encodeURIComponent(SALES_SHEET_NAME)}&cell_range=A1:Z500&_t=${Date.now()}`
       );
@@ -126,10 +130,19 @@ export default function SalesTab() {
     await fetchSalesData(false);
   };
 
+  // Filter data based on search query
+  const filteredData = useMemo(() => {
+    if (!searchQuery.trim()) return salesData;
+    const q = searchQuery.toLowerCase().trim();
+    return salesData.filter(row => 
+      row.some(cell => cell && cell.toString().toLowerCase().includes(q))
+    );
+  }, [salesData, searchQuery]);
+
   // ─── Error / Loading states ─────────────────────────────────────────────
   if (loading) return (
     <SafeAreaView style={st.container} edges={['top']}>
-      <Header />
+      <Header showSearch={showSearch} setShowSearch={setShowSearch} />
       <View style={st.center}>
         <ActivityIndicator size="large" color="#4285F4" />
         <Text style={st.centerText}>Loading Sales Data...</Text>
@@ -139,7 +152,7 @@ export default function SalesTab() {
 
   if (error === 'session_expired') return (
     <SafeAreaView style={st.container} edges={['top']}>
-      <Header />
+      <Header showSearch={showSearch} setShowSearch={setShowSearch} />
       <View style={st.center}>
         <Ionicons name="log-out-outline" size={48} color="#EA4335" />
         <Text style={st.centerTitle}>Session Expired</Text>
@@ -150,12 +163,12 @@ export default function SalesTab() {
 
   if (error === 'file_not_found') return (
     <SafeAreaView style={st.container} edges={['top']}>
-      <Header />
+      <Header showSearch={showSearch} setShowSearch={setShowSearch} />
       <View style={st.center}>
         <Ionicons name="document-outline" size={48} color="#FA7B17" />
         <Text style={st.centerTitle}>Sales File Not Found</Text>
         <Text style={st.centerSub}>Could not find "Sales FY 25-26" file in your Drive.</Text>
-        <Text style={st.centerHint}>Make sure the file exists and contains a sheet named "Sales".</Text>
+        <Text style={st.centerHint}>Make sure the file exists and contains a sheet named "Debtors".</Text>
         <TouchableOpacity style={st.retryBtn} onPress={() => fetchSalesData(false)} data-testid="retry-btn">
           <Ionicons name="refresh" size={18} color="#fff" />
           <Text style={st.retryBtnText}>Retry</Text>
@@ -166,7 +179,7 @@ export default function SalesTab() {
 
   if (error === 'fetch_failed') return (
     <SafeAreaView style={st.container} edges={['top']}>
-      <Header />
+      <Header showSearch={showSearch} setShowSearch={setShowSearch} />
       <View style={st.center}>
         <Ionicons name="cloud-offline-outline" size={48} color="#EA4335" />
         <Text style={st.centerTitle}>Failed to Load</Text>
@@ -180,7 +193,28 @@ export default function SalesTab() {
 
   return (
     <SafeAreaView style={st.container} edges={['top']}>
-      <Header />
+      <Header showSearch={showSearch} setShowSearch={setShowSearch} />
+
+      {/* Search Bar */}
+      {showSearch && (
+        <View style={st.searchBar}>
+          <Ionicons name="search" size={16} color="#9aa0a6" />
+          <TextInput
+            style={st.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search dealer, amount, date..."
+            placeholderTextColor="#5f6368"
+            autoFocus
+            data-testid="sales-search-input"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color="#9aa0a6" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* File Info Bar */}
       {fileInfo && (
@@ -196,8 +230,8 @@ export default function SalesTab() {
       {/* Stats Row */}
       <View style={st.statsRow}>
         <View style={st.statCard}>
-          <Text style={st.statValue}>{salesData.length}</Text>
-          <Text style={st.statLabel}>Records</Text>
+          <Text style={st.statValue}>{filteredData.length}</Text>
+          <Text style={st.statLabel}>{searchQuery ? 'Matches' : 'Records'}</Text>
         </View>
         <View style={st.statCard}>
           <Text style={st.statValue}>{headers.length}</Text>
@@ -216,6 +250,7 @@ export default function SalesTab() {
       {lastUpdated && (
         <View style={st.tsBar}>
           <Text style={st.tsText}>Last updated: {lastUpdated}</Text>
+          {searchQuery && <Text style={st.tsText}> | Showing {filteredData.length} of {salesData.length}</Text>}
         </View>
       )}
 
@@ -245,7 +280,7 @@ export default function SalesTab() {
           </View>
 
           {/* Data Rows */}
-          {salesData.map((row, rIdx) => (
+          {filteredData.map((row, rIdx) => (
             <View key={rIdx} style={[st.tableRow, rIdx % 2 === 0 ? st.rowEven : st.rowOdd]}>
               <View style={[st.cell, st.rowNumCell]}>
                 <Text style={st.rowNumText}>{rIdx + 2}</Text>
@@ -258,9 +293,11 @@ export default function SalesTab() {
             </View>
           ))}
 
-          {salesData.length === 0 && (
+          {filteredData.length === 0 && (
             <View style={st.emptyRow}>
-              <Text style={st.emptyText}>No sales data found</Text>
+              <Text style={st.emptyText}>
+                {searchQuery ? `No results for "${searchQuery}"` : 'No sales data found'}
+              </Text>
             </View>
           )}
 
@@ -271,11 +308,24 @@ export default function SalesTab() {
   );
 }
 
-function Header() {
+interface HeaderProps {
+  showSearch: boolean;
+  setShowSearch: (show: boolean) => void;
+}
+
+function Header({ showSearch, setShowSearch }: HeaderProps) {
   return (
     <View style={st.header}>
       <Ionicons name="trending-up" size={24} color="#34A853" />
-      <Text style={st.headerTitle}>Annual Sales (FY 25-26)</Text>
+      <Text style={st.headerTitle}>Debtors (FY 25-26)</Text>
+      <View style={{ flex: 1 }} />
+      <TouchableOpacity 
+        style={[st.searchBtn, showSearch && st.searchBtnActive]} 
+        onPress={() => setShowSearch(!showSearch)}
+        data-testid="sales-search-toggle"
+      >
+        <Ionicons name="search" size={20} color={showSearch ? '#4285F4' : '#9aa0a6'} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -288,6 +338,20 @@ const st = StyleSheet.create({
     backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460',
   },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  searchBtn: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: '#0f3460',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  searchBtnActive: { backgroundColor: '#E8F0FE' },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: '#1a2744', borderBottomWidth: 1, borderBottomColor: '#0f3460',
+  },
+  searchInput: {
+    flex: 1, backgroundColor: '#0f3460', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: '#fff',
+  },
   fileBar: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 8,
@@ -309,7 +373,7 @@ const st = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '700', color: '#fff' },
   statLabel: { fontSize: 10, color: '#9aa0a6', marginTop: 2 },
   tsBar: {
-    paddingHorizontal: 16, paddingVertical: 6,
+    flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 6,
     backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460',
   },
   tsText: { fontSize: 10, color: '#5f6368' },

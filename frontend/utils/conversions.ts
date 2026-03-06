@@ -78,7 +78,15 @@ export const LENGTH_UNITS: { key: LengthUnit; label: string; hint: string }[] = 
 ];
 
 // ─── Weight Calculator ──────────────────────────────────────────────
-const DENSITY = 0.00785; // kg per mm²·mm·m (steel density factor)
+// STEEL WEIGHT FORMULAS - User-specified
+// Input: Size/thickness in inches, length in feet
+// Output: Weight in kg
+//
+// Square:    W = (side × 25.4 − thickness) × thickness × 0.00957 × length
+// Rectangle: W = ((s1 + s2) × 25.4 − 2 × thickness) × thickness × 0.004785 × length
+// Round:     W = (OD − thickness) × thickness × 0.007516 × length
+//
+// Note: If mm is selected, code converts to inch first: inch = mm / 25.4
 
 export type Shape = 'square' | 'rectangle' | 'round';
 
@@ -96,35 +104,41 @@ export interface WeightInput {
 }
 
 export function calcWeight(input: WeightInput): number {
-  // Step 1: Convert dimensions to mm
-  const dimFactor = input.dimUnit === 'inch' ? 25.4 : 1;
-  const thickFactor = input.thicknessUnit === 'inch' ? 25.4 : 1;
+  // Step 1: Convert dimensions to inches (formulas expect inches)
+  // If input is in mm, convert to inch: inch = mm / 25.4
+  const dimToInch = input.dimUnit === 'mm' ? (1 / 25.4) : 1;
+  const thickToInch = input.thicknessUnit === 'mm' ? (1 / 25.4) : 1;
 
-  const thickness_mm = input.thickness * thickFactor;
+  // Thickness in inches
+  const thickness = input.thickness * thickToInch;
 
-  // Step 2: Convert length to meters
-  let length_m: number;
+  // Step 2: Convert length to feet (formulas expect feet)
+  let length_ft: number;
   switch (input.lengthUnit) {
-    case 'mm': length_m = input.length / 1000; break;
-    case 'inch': length_m = (input.length * 25.4) / 1000; break;
-    case 'feet': length_m = input.length * 0.3048; break;
-    case 'm': default: length_m = input.length; break;
+    case 'mm': length_ft = input.length / 304.8; break;  // mm to feet
+    case 'inch': length_ft = input.length / 12; break;   // inch to feet
+    case 'm': length_ft = input.length * 3.28084; break; // m to feet
+    case 'feet': default: length_ft = input.length; break;
   }
 
-  // Step 3: Calculate weight based on shape
+  // Step 3: Calculate weight based on shape using exact formulas
   switch (input.shape) {
     case 'square': {
-      const side_mm = (input.side ?? 0) * dimFactor;
-      return side_mm * side_mm * thickness_mm * length_m * DENSITY;
+      // W = (side × 25.4 − thickness) × thickness × 0.00957 × length
+      // side is in inches, thickness in inches, length in feet
+      const side_inch = (input.side ?? 0) * dimToInch;
+      return (side_inch * 25.4 - thickness) * thickness * 0.00957 * length_ft;
     }
     case 'rectangle': {
-      const s1_mm = (input.side1 ?? 0) * dimFactor;
-      const s2_mm = (input.side2 ?? 0) * dimFactor;
-      return s1_mm * s2_mm * thickness_mm * length_m * DENSITY;
+      // W = ((s1 + s2) × 25.4 − 2 × thickness) × thickness × 0.004785 × length
+      const s1_inch = (input.side1 ?? 0) * dimToInch;
+      const s2_inch = (input.side2 ?? 0) * dimToInch;
+      return ((s1_inch + s2_inch) * 25.4 - 2 * thickness) * thickness * 0.004785 * length_ft;
     }
     case 'round': {
-      const od_mm = (input.od ?? 0) * dimFactor;
-      return (Math.PI * od_mm * od_mm / 4) * thickness_mm * length_m * DENSITY;
+      // W = (OD − thickness) × thickness × 0.007516 × length
+      const od_inch = (input.od ?? 0) * dimToInch;
+      return (od_inch - thickness) * thickness * 0.007516 * length_ft;
     }
   }
 }
