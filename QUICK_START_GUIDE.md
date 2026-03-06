@@ -28,7 +28,7 @@ Great! You've linked your Google Drive (partharjun04@gmail.com) with Excel. Now 
 ## 📱 Step 3: Using the Mobile App
 
 ### A. Open the App
-- **Web Browser**: https://excel-app-link.preview.emergentagent.com
+- **Web Browser**: https://drive-quotation-app.preview.emergentagent.com
 - **Mobile Device**: Scan QR code or visit the URL
 
 ### B. Connect Google Drive
@@ -146,7 +146,7 @@ Your Excel files are now accessible on your mobile device! Here's what you can d
 
 ## 🔗 Quick Links
 
-- **App URL**: https://excel-app-link.preview.emergentagent.com
+- **App URL**: https://drive-quotation-app.preview.emergentagent.com
 - **Google Drive**: https://drive.google.com
 - **Your Email**: partharjun04@gmail.com
 - **Full Documentation**: See `/app/README_EXCEL_READER.md`
