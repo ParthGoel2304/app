@@ -46,8 +46,9 @@ export default function FilesScreen() {
       setSessionId(session);
       
       // Add timestamp to force fresh data (bypass cache)
+      // Use folder_only=true to get files from the specific office folder
       const response = await axios.get(
-        `${BACKEND_URL}/api/drive/files?session_id=${session}&_t=${Date.now()}`,
+        `${BACKEND_URL}/api/drive/files?session_id=${session}&folder_only=true&_t=${Date.now()}`,
         { headers: { 'Cache-Control': 'no-cache' } }
       );
       

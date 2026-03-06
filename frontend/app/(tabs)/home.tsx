@@ -419,7 +419,7 @@ export default function HomeScreen() {
               {[
                 { label: 'Purchase', icon: 'cart', color: '#34A853', bg: '#E6F4EA', route: '/(tabs)/purchase' },
                 { label: 'Calculator', icon: 'calculator', color: '#4285F4', bg: '#E8F0FE', route: '/(tabs)/calculator' },
-                { label: 'Layout', icon: 'grid', color: '#E65100', bg: '#FFF3E0', route: '/(tabs)/layout' },
+                { label: 'Layout', icon: 'grid', color: '#E65100', bg: '#FFF3E0', route: '/(tabs)/warehouse' },
                 { label: 'Filter', icon: 'funnel', color: '#FA7B17', bg: '#FEF0E6', route: '/(tabs)/filter' },
                 { label: 'Parchi', icon: 'document-text', color: '#9C27B0', bg: '#F0E6FE', route: '/(tabs)/parchi' },
                 { label: 'Sheet View', icon: 'eye', color: '#1565C0', bg: '#E3F2FD', route: '/sheetview' },
