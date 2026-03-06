@@ -10,7 +10,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://drive-quotation-app.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://excel-app-link.preview.emergentagent.com').rstrip('/')
 
 class TestDriveFilesEndpoint:
     """Tests for /api/drive/files endpoint with folder_only parameter"""
