@@ -36,7 +36,7 @@
     "OAuth callback endpoint correctly returns HTML response instead of redirect - fixing 404 issue on deployed apps",
     "Manual code entry endpoint (/api/oauth/drive/manual-connect) properly implemented with session validation",
     "Frontend login.tsx has proper fallback flow with 'I've Connected' and 'Got 404?' buttons appearing after OAuth initiation",
-    "All OAuth endpoints use hardcoded GOOGLE_DRIVE_REDIRECT_URI from env (https://drive-quotation-app.preview.emergentagent.com/api/oauth/drive/callback)"
+    "All OAuth endpoints use hardcoded GOOGLE_DRIVE_REDIRECT_URI from env (https://excel-link-app.preview.emergentagent.com/api/oauth/drive/callback)"
   ],
   "updated_files": [
     "/app/backend/tests/test_oauth_manual.py"
