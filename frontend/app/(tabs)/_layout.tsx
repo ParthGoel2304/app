@@ -68,6 +68,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="sales"
+        options={{
+          title: 'Sales',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={22} color={color} />
+          ),
+        }}
+      />
       {/* Hidden tabs — accessible via Home quick view */}
       <Tabs.Screen name="filter" options={{ href: null }} />
       <Tabs.Screen name="parchi" options={{ href: null }} />

@@ -51,8 +51,15 @@ export default function PurchaseScreen() {
     const stored = await AsyncStorage.getItem('sheet_library');
     if (!stored) return;
     const library: SheetProfile[] = JSON.parse(stored);
-    // Find the main file (F.Y. 2025-26 Final or any file with demand sheets)
-    const file = library.find(s => s.sheetName.includes('In Demand')) || library[0];
+    // First, try to find "F.Y. 2025-26 Final" file specifically
+    // Then fall back to any file with "In Demand" sheets
+    const targetFile = library.find(s => 
+      s.fileName?.toLowerCase().includes('f.y. 2025-26') || 
+      s.fileName?.toLowerCase().includes('fy 2025-26') ||
+      s.fileName?.toLowerCase().includes('2025-26 final')
+    );
+    const demandFile = library.find(s => s.sheetName.includes('In Demand'));
+    const file = targetFile || demandFile || library[0];
     if (file) {
       setFileProfile(file);
       loadAllSheets(file);

@@ -188,6 +188,7 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
         redirect_uri = _get_redirect_uri(request)
         logger.info(f"OAuth CONNECT - redirect_uri: {redirect_uri}, Host: {request.headers.get('Host')}, XFH: {request.headers.get('X-Forwarded-Host')}, XFP: {request.headers.get('X-Forwarded-Proto')}")
         
+        # Use full drive.readonly scope to access ALL files (not just app-created ones)
         flow = Flow.from_client_config(
             {
                 "web": {
@@ -325,6 +326,9 @@ async def drive_callback(request: Request, code: str = Query(...), state: str = 
         
         logger.info(f"Drive credentials stored for session {session_id}")
         
+        # Get frontend URL for redirect
+        frontend_url = _get_frontend_url(request)
+        
         # Return a simple HTML page instead of redirect (fixes 404 on deployed apps)
         html = f"""
         <!DOCTYPE html>
@@ -394,24 +398,28 @@ async def check_drive_status(session_id: str = Query(...)):
         "session_id": session_id
     }
 
-# Office folder ID - loaded from environment variable
-OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '1Kw96RZVDd0DBUjSblYN2FEElZqRdqTWH')
+# Office folder ID - loaded from environment variable (optional, for folder-specific queries)
+OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '14pVmKjmdbF7R2Qpy3P2pQshz3LkN_vTJ')
 
-# 5. LIST EXCEL FILES FROM DRIVE (from specific folder only)
+# 5. LIST EXCEL FILES FROM DRIVE (ALL Excel files, sorted by modifiedTime desc)
 @api_router.get("/drive/files")
-async def list_excel_files(session_id: str = Query(...)):
-    """List Excel files from the office Drive folder only"""
+async def list_excel_files(session_id: str = Query(...), folder_only: bool = Query(default=False)):
+    """List ALL Excel files from entire Drive, sorted newest first"""
     try:
         service = await get_drive_service(session_id)
         
-        # Query for Excel files ONLY in the specific office folder
-        query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
+        # Query for ALL Excel files (.xlsx and .xls) from entire Drive
+        # NOT restricted to a specific folder - this requires drive.readonly scope
+        if folder_only and OFFICE_FOLDER_ID:
+            query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
+        else:
+            query = "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
         
-        # Force fresh query - no caching
+        # Force fresh query - no caching, sorted by modifiedTime desc (newest first)
         results = service.files().list(
             q=query,
             pageSize=100,
-            fields="files(id, name, modifiedTime, size)",
+            fields="files(id, name, modifiedTime, size, webViewLink)",
             orderBy="modifiedTime desc",
             supportsAllDrives=True,
             includeItemsFromAllDrives=True
@@ -431,12 +439,32 @@ async def list_excel_files(session_id: str = Query(...)):
             if not f['name'].startswith('~$')
         ]
         
-        logger.info(f"Found {len(excel_files)} Excel files in office folder for session {session_id}")
+        logger.info(f"Found {len(excel_files)} Excel files in Drive for session {session_id} (folder_only={folder_only})")
         return {"files": excel_files}
     
     except Exception as e:
         logger.error(f"Failed to list files: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}")
+
+# 5b. GET FILE METADATA (modifiedTime for auto-refresh)
+@api_router.get("/drive/file-metadata")
+async def get_file_metadata(session_id: str = Query(...), file_id: str = Query(...)):
+    """Get file metadata including modifiedTime from Google Drive"""
+    try:
+        service = await get_drive_service(session_id)
+        file_meta = service.files().get(
+            fileId=file_id,
+            fields="id, name, modifiedTime, size"
+        ).execute()
+        return {
+            "file_id": file_meta.get('id'),
+            "file_name": file_meta.get('name'),
+            "modified_time": file_meta.get('modifiedTime'),
+            "size": file_meta.get('size', 'Unknown'),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get file metadata: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # 6. GET SHEET NAMES FROM FILE
 @api_router.get("/drive/file/{file_id}/sheets")

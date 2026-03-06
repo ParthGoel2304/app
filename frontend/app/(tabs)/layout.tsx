@@ -12,7 +12,6 @@ import {
   getSheetLibrary, setSheetLibrary, updateSheetProfile,
   getColOffset, SheetProfile
 } from '../../utils/store';
-import { shortItemName } from '../../utils/conversions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -160,16 +159,25 @@ export default function LayoutScreen() {
     } finally { setLoading(false); }
   };
 
-  const isSearchMatch = (text: string) => {
-    if (!searchQuery.trim()) return false;
+  const isSearchMatch = (rackID: string) => {
+    if (!searchQuery.trim()) return true; // Show all if no search
     const q = searchQuery.trim().toLowerCase();
-    return text.toLowerCase().includes(q);
+    // Search by SIZE - check if any item in this rack contains the search term
+    const entries = getRackEntries(rackID, currentMap);
+    return entries.some(e => e.size.toLowerCase().includes(q));
   };
 
+  // Get first 8 characters of size names for display
   const getShortNames = (rackID: string): string[] => {
     const entries = getRackEntries(rackID, currentMap);
     if (entries.length === 0) return [];
-    return entries.map(e => shortItemName(e.size)).filter(s => s.length > 0);
+    // Show first 8 characters of each size (not abbreviated)
+    return entries.map(e => {
+      const size = e.size.trim();
+      // Extract the part before any parenthesis, then take first 8 chars
+      const beforeParen = size.split('(')[0].trim();
+      return beforeParen.substring(0, 8);
+    }).filter(s => s.length > 0);
   };
 
   // Rack lookup
@@ -399,8 +407,16 @@ export default function LayoutScreen() {
     const bg = entries.length > 0 ? stockColor(stock) : '#E8E8E8';
     const matched = isSearchMatch(text);
     const shortNames = compactMode ? getShortNames(text) : [];
+    
+    // If searching and this rack doesn't match, hide it (show empty space)
+    if (searchQuery.trim() && !matched) {
+      return <View key={idx} style={[s.rackCell, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'transparent' }]}>
+        <Text style={[s.rackCode, { color: '#3a3a3a', fontSize: 8 }]}>{text}</Text>
+      </View>;
+    }
+    
     return (
-      <TouchableOpacity key={idx} style={[s.rackCell, { backgroundColor: bg }, matched && s.rackCellHighlight]}
+      <TouchableOpacity key={idx} style={[s.rackCell, { backgroundColor: bg }, matched && searchQuery.trim() && s.rackCellHighlight]}
         onPress={() => handleRackTap(text)} activeOpacity={0.7} data-testid={`rack-cell-${text}`}>
         <Text style={s.rackCode}>{text}</Text>
         {compactMode && shortNames.length > 0 && (
@@ -495,15 +511,19 @@ export default function LayoutScreen() {
             style={s.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search rack (e.g. R1.1)"
+            placeholder="Search by size (e.g. 72X72)"
             placeholderTextColor="#5f6368"
-            data-testid="rack-search-input"
+            data-testid="size-search-input"
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
               <Ionicons name="close-circle" size={18} color="#9aa0a6" />
             </TouchableOpacity>
           )}
+          <View style={s.searchDivider} />
+          <TouchableOpacity onPress={() => refreshData(activeTab)} style={s.searchRefreshBtn} data-testid="search-refresh-btn">
+            <Ionicons name="refresh" size={16} color="#34A853" />
+          </TouchableOpacity>
           <View style={s.searchDivider} />
           <TouchableOpacity onPress={() => setCompactMode(!compactMode)} style={s.compactToggle}>
             <Ionicons name={compactMode ? 'list' : 'apps'} size={16} color={compactMode ? '#4285F4' : '#9aa0a6'} />
@@ -760,6 +780,7 @@ const s = StyleSheet.create({
   searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#16213e', gap: 8 },
   searchInput: { flex: 1, backgroundColor: '#0f3460', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#fff' },
   searchDivider: { width: 1, height: 20, backgroundColor: '#0f3460' },
+  searchRefreshBtn: { padding: 6 },
   compactToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, backgroundColor: '#0f3460' },
   compactToggleText: { fontSize: 10, fontWeight: '600', color: '#9aa0a6' },
   // Legend
