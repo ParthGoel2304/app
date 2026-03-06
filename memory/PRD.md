@@ -11,20 +11,40 @@ Build a mobile-first inventory lookup and quotation app that connects to Google 
 ## Navigation (Bottom Tabs)
 | Tab | Screen | Description |
 |-----|--------|-------------|
-| Home | home.tsx | Library management + Quick Actions |
+| Home | home.tsx | Library management + Quick Actions + Auto-refresh |
 | Purchase | purchase.tsx | Purchase order from In Demand sheets |
 | Calculator | calculator.tsx | Weight calculator + Length/NB-OD converter |
 | Inventory | inventory.tsx | Master stock list |
-| Layout | layout.tsx | Visual warehouse rack layout |
+| Layout | layout.tsx | Visual warehouse rack layout + Search by SIZE |
+| Sales | sales.tsx | Annual Sales (FY 25-26) data view |
 
 **Hidden (via Quick View):** Filter (filter.tsx), Parchi (parchi.tsx), Sheet View (sheetview.tsx)
 
-## Completed Features (as of 28 Feb 2026)
+## Completed Features (as of 06 Mar 2026)
 
 ### Core
 - [x] Google OAuth with dual approach (browser redirect + manual code fallback)
 - [x] Sheet Library system (add, save, switch profiles)
 - [x] Home Quick Actions: Purchase, Calculator, Layout, Smart Filter, Parchi, Sheet View
+
+### New Features (06 Mar 2026)
+- [x] **Drive API Fix**: Changed scope to `drive.readonly` to access ALL Excel files
+- [x] **File Listing**: Fetches all .xlsx/.xls from entire Drive (not just folder)
+- [x] **Sort by Modified**: Files sorted by `modifiedTime desc` (newest first)
+- [x] **Auto-Refresh**: Home screen checks for file updates every 60 seconds
+- [x] **File Metadata**: Display file name + "Last Updated" timestamp
+- [x] **Low-Stock Alert Panel**: Bottom-left minimizable panel showing items below min stock
+- [x] **Auto-Reorder Suggestions**: Calculates `(MinStock * 2) - CurrentStock`
+- [x] **Share/Export**: Top-right dropdown with PDF, WhatsApp, TXT export options
+- [x] **Sales Tab**: New "Annual Sales" tab fetching from "Sales FY 25-26" file
+- [x] **Layout Tab Search**: Search by SIZE (not rack location), only show matching racks
+- [x] **Layout Refresh Button**: Added refresh button in search bar
+- [x] **Layout Short Names**: Show first 8 characters of size (not abbreviated)
+- [x] **SheetView Row Hiding**: Toggle row visibility with eye-off button
+- [x] **SheetView Print**: Print functionality with HP Print Service Plugin support
+- [x] **SheetView JGT Pages**: Auto-paginate JGT files (A1:O38, A39:O76, A77:O114, A115:O155)
+- [x] **SheetView Column Hiding**: Hide B,C,D,J,K,L by default (editable)
+- [x] **Purchase Tab**: Uses "F.Y. 2025-26 Final" file with In Demand sheets
 
 ### Weight Calculator (NEW)
 - [x] Shape-first flow: Square / Rectangle / Round
