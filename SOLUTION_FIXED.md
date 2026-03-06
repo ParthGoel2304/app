@@ -9,7 +9,7 @@ The Expo tunnel issue has been resolved by serving the app as a **web build** in
 ## 📱 **How to Access Your App**
 
 ### **Web Browser (Works on ANY device!)**
-🌐 **URL**: https://drive-quotation-app.preview.emergentagent.com
+🌐 **URL**: https://excel-app-link.preview.emergentagent.com
 
 ✅ Works on:
 - Desktop browsers (Chrome, Firefox, Safari, Edge)
@@ -36,7 +36,7 @@ The Expo tunnel issue has been resolved by serving the app as a **web build** in
 ### **Step 2: Open the App**
 
 Open this URL in any browser:
-📱 **https://drive-quotation-app.preview.emergentagent.com**
+📱 **https://excel-app-link.preview.emergentagent.com**
 
 ---
 
@@ -102,7 +102,7 @@ Date        Product    Quantity    Price
 
 **Steps:**
 1. Upload "Sales_Report.xlsx" to Google Drive
-2. Open: https://drive-quotation-app.preview.emergentagent.com
+2. Open: https://excel-app-link.preview.emergentagent.com
 3. Connect Google Drive (partharjun04@gmail.com)
 4. Tap "Sales_Report.xlsx"
 5. Select "Sheet1"
@@ -142,7 +142,7 @@ When you modify your Excel file:
 ```
 Web Browser
     ↓
-https://drive-quotation-app.preview.emergentagent.com
+https://excel-app-link.preview.emergentagent.com
     ↓
 CloudFlare Proxy
     ↓
@@ -206,13 +206,13 @@ MongoDB + Google Drive API
 ### **App not loading**
 - Clear browser cache
 - Try in incognito/private mode
-- Check if https://drive-quotation-app.preview.emergentagent.com loads
+- Check if https://excel-app-link.preview.emergentagent.com loads
 
 ---
 
 ## 🎯 **Quick Reference**
 
-**App URL**: https://drive-quotation-app.preview.emergentagent.com
+**App URL**: https://excel-app-link.preview.emergentagent.com
 
 **Your Google Account**: partharjun04@gmail.com
 
@@ -240,7 +240,7 @@ MongoDB + Google Drive API
 
 Your Excel Reader app is **fully functional** and accessible from any device!
 
-Just open: **https://drive-quotation-app.preview.emergentagent.com**
+Just open: **https://excel-app-link.preview.emergentagent.com**
 
 Upload your Excel files to Google Drive, and start viewing them on mobile!
 
