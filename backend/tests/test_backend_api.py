@@ -7,7 +7,7 @@ import requests
 import os
 
 # Use the public preview URL for testing
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://parchi-quotation-dev.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://excel-app-link.preview.emergentagent.com')
 
 class TestRootEndpoint:
     """Test the root /api/ endpoint"""
