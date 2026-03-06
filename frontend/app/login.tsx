@@ -58,7 +58,7 @@ export default function LoginScreen() {
       if (!sid) {
         const sessionRes = await axios.post(`${BACKEND_URL}/api/session/create`);
         sid = sessionRes.data.session_id;
-        await AsyncStorage.setItem('session_id', sid);
+        await AsyncStorage.setItem('session_id', sid!);
         setSessionId(sid);
       }
 
