@@ -408,12 +408,12 @@ async def list_excel_files(session_id: str = Query(...), folder_only: bool = Que
     try:
         service = await get_drive_service(session_id)
         
-        # Query for ALL Excel files (.xlsx and .xls) from entire Drive
-        # NOT restricted to a specific folder - this requires drive.readonly scope
+        # Query for ALL Excel files (.xlsx, .xls, and .xlsm) from Drive
+        # Include macro-enabled workbooks (.xlsm)
         if folder_only and OFFICE_FOLDER_ID:
-            query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
+            query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
         else:
-            query = "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false"
+            query = "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
         
         # Force fresh query - no caching, sorted by modifiedTime desc (newest first)
         results = service.files().list(
