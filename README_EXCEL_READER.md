@@ -49,8 +49,8 @@ Your credentials are already configured:
 ```
 Client ID: 352071874328-ehoi67f6ug14o1hbjodg18pvdu8ni110.apps.googleusercontent.com
 Client Secret: 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
-Redirect URI: https://parchi-quotation-dev.preview.emergentagent.com/api/oauth/drive/callback
-Authorized Origin: https://parchi-quotation-dev.preview.emergentagent.com
+Redirect URI: https://excel-app-link.preview.emergentagent.com/api/oauth/drive/callback
+Authorized Origin: https://excel-app-link.preview.emergentagent.com
 ```
 
 **Scopes Used:**
@@ -117,13 +117,13 @@ Data Screen (/data)
 ### Testing Commands
 ```bash
 # Test backend
-curl https://parchi-quotation-dev.preview.emergentagent.com/api/
+curl https://excel-app-link.preview.emergentagent.com/api/
 
 # Create session
-curl -X POST https://parchi-quotation-dev.preview.emergentagent.com/api/session/create
+curl -X POST https://excel-app-link.preview.emergentagent.com/api/session/create
 
 # Check status
-curl "https://parchi-quotation-dev.preview.emergentagent.com/api/drive/status?session_id=YOUR_SESSION_ID"
+curl "https://excel-app-link.preview.emergentagent.com/api/drive/status?session_id=YOUR_SESSION_ID"
 ```
 
 ## 📂 Project Structure
@@ -154,13 +154,13 @@ MONGO_URL="mongodb://localhost:27017"
 DB_NAME="excel_reader_db"
 GOOGLE_CLIENT_ID="352071874328-ehoi67f6ug14o1hbjodg18pvdu8ni110.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="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"
-GOOGLE_DRIVE_REDIRECT_URI="https://parchi-quotation-dev.preview.emergentagent.com/api/oauth/drive/callback"
-FRONTEND_URL="https://parchi-quotation-dev.preview.emergentagent.com"
+GOOGLE_DRIVE_REDIRECT_URI="https://excel-app-link.preview.emergentagent.com/api/oauth/drive/callback"
+FRONTEND_URL="https://excel-app-link.preview.emergentagent.com"
 ```
 
 ### Frontend (.env)
 ```env
-EXPO_PUBLIC_BACKEND_URL=https://parchi-quotation-dev.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://excel-app-link.preview.emergentagent.com
 ```
 
 ## 📦 Dependencies
@@ -279,8 +279,8 @@ For issues or questions:
 
 Your Excel Reader app is now ready to use! Connect your Google Drive, select your Excel files, and view your data on mobile.
 
-**App URL**: https://parchi-quotation-dev.preview.emergentagent.com
-**Backend API**: https://parchi-quotation-dev.preview.emergentagent.com/api/
+**App URL**: https://excel-app-link.preview.emergentagent.com
+**Backend API**: https://excel-app-link.preview.emergentagent.com/api/
 
 ---
 

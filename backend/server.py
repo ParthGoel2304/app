@@ -103,17 +103,31 @@ async def get_drive_service(session_id: str):
     # Auto-refresh if expired
     if creds.expired and creds.refresh_token:
         logger.info(f"Refreshing expired token for session {session_id}")
-        creds.refresh(GoogleRequest())
-        
-        # Update in database
-        await db.drive_credentials.update_one(
-            {"session_id": session_id},
-            {"$set": {
-                "access_token": creds.token,
-                "expiry": creds.expiry.isoformat() if creds.expiry else None,
-                "updated_at": datetime.now(timezone.utc)
-            }}
-        )
+        try:
+            creds.refresh(GoogleRequest())
+            
+            # Update in database
+            await db.drive_credentials.update_one(
+                {"session_id": session_id},
+                {"$set": {
+                    "access_token": creds.token,
+                    "expiry": creds.expiry.isoformat() if creds.expiry else None,
+                    "updated_at": datetime.now(timezone.utc)
+                }}
+            )
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Token refresh failed for session {session_id}: {error_msg}")
+            
+            # Handle invalid_grant - token is revoked/expired, need re-authentication
+            if "invalid_grant" in error_msg:
+                # Clear invalid credentials
+                await db.drive_credentials.delete_one({"session_id": session_id})
+                raise HTTPException(
+                    status_code=401,
+                    detail="Session expired. Please re-authenticate with Google Drive."
+                )
+            raise HTTPException(status_code=401, detail=f"Token refresh failed: {error_msg}")
     
     return build('drive', 'v3', credentials=creds)
 
