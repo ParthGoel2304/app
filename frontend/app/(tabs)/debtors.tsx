@@ -63,11 +63,8 @@ export default function DebtorsScreen() {
   const findDebtorFile = async (sid: string) => {
     const filesRes = await axios.get(`${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=true`);
     const files = filesRes.data.files || [];
-    // Look for a file that might contain debtor data
+    // Use the file containing "Sales" in its name
     return files.find((f: any) =>
-      f.file_name.toLowerCase().includes('debtor') ||
-      f.file_name.toLowerCase().includes('account') ||
-      f.file_name.toLowerCase().includes('ledger') ||
       f.file_name.toLowerCase().includes('sales')
     );
   };
@@ -95,23 +92,24 @@ export default function DebtorsScreen() {
       );
       const sheets: string[] = sheetsRes.data.sheet_names || [];
 
-      // Load Debtors sheet
-      const debtorSheet = sheets.find(s => s.toLowerCase().includes('debtor'));
-      if (debtorSheet) {
-        const data = await loadSheetData(sid, file.file_id, debtorSheet);
+      // Primary: Load "Sales" sheet as the debtors data source
+      const salesSheet = sheets.find(s => s.toLowerCase() === 'sales') || 
+                         sheets.find(s => s.toLowerCase().includes('sales'));
+      if (salesSheet) {
+        const data = await loadSheetData(sid, file.file_id, salesSheet);
         setDebtorsData(data);
       }
 
-      // Load OriginalBills sheet
+      // Also load Bills sheet if it exists
       const billsSheet = sheets.find(s =>
-        s.toLowerCase().includes('bill') || s.toLowerCase().includes('invoice')
+        s.toLowerCase().includes('bill') || s.toLowerCase().includes('invoice') || s.toLowerCase().includes('original')
       );
       if (billsSheet) {
         const data = await loadSheetData(sid, file.file_id, billsSheet);
         setBillsData(data);
       }
 
-      // Load Payments sheet
+      // Also load Payments sheet if it exists
       const paySheet = sheets.find(s => s.toLowerCase().includes('payment'));
       if (paySheet) {
         const data = await loadSheetData(sid, file.file_id, paySheet);
@@ -260,7 +258,7 @@ export default function DebtorsScreen() {
         <View style={st.center}>
           <Ionicons name="document-text-outline" size={48} color="#5f6368" />
           <Text style={st.errTitle}>No Debtor File Found</Text>
-          <Text style={st.errSub}>Make sure your Drive folder contains a file with "Debtors", "Account" or "Ledger" in the name.</Text>
+          <Text style={st.errSub}>Make sure your Drive folder contains a file with "Sales" in the name.</Text>
         </View>
       </SafeAreaView>
     );

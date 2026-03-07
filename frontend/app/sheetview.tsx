@@ -110,8 +110,20 @@ export default function SheetViewScreen() {
     try {
       const sid = await AsyncStorage.getItem('session_id');
       if (!sid) { Alert.alert('Session Expired', 'Please login again'); router.replace('/'); return; }
+      
+      // Ensure range extends to at least column P for STOCK sheets
+      let fetchRange = profile.range;
+      const rangeMatch = fetchRange.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+      if (rangeMatch) {
+        const endCol = rangeMatch[3];
+        // If end column is before P (A-O), extend to P
+        if (endCol.length === 1 && endCol.charCodeAt(0) < 'P'.charCodeAt(0)) {
+          fetchRange = `${rangeMatch[1]}${rangeMatch[2]}:P${rangeMatch[4]}`;
+        }
+      }
+      
       const res = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${profile.fileId}&sheet_name=${encodeURIComponent(profile.sheetName)}&cell_range=${encodeURIComponent(profile.range)}&_t=${Date.now()}`
+        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${profile.fileId}&sheet_name=${encodeURIComponent(profile.sheetName)}&cell_range=${encodeURIComponent(fetchRange)}&_t=${Date.now()}`
       );
       const rows: string[][] = res.data.data || [];
       updateSheetProfile(profile.id, { data: rows, rowCount: res.data.row_count, colCount: res.data.col_count, lastRefreshed: Date.now() });
