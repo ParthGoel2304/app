@@ -78,75 +78,144 @@ export const LENGTH_UNITS: { key: LengthUnit; label: string; hint: string }[] = 
 ];
 
 // ─── Weight Calculator ──────────────────────────────────────────────
-// STEEL WEIGHT FORMULAS - User-specified
-// Input: Side/OD in INCHES, Thickness in MM, Length in FEET
-// Output: Weight in kg
+// STEEL WEIGHT FORMULAS - FINAL CORRECTED VERSION
+// 
+// Input Setup:
+// - Side/OD: INCHES (user input)
+// - Thickness: MM (user input) 
+// - Length: FEET (user input)
 //
-// Square:    W = (Side − Thickness) × Thickness × 0.00957 × Length
-// Rectangle: W = ((S1 + S2) − 2 × Thickness) × Thickness × 0.004785 × Length
-// Round OD:  W = (OD − Thickness) × Thickness × 0.007516 × Length
-// Round NB:  W = ((NB − Thickness) × 0.88261) × Thickness × 0.007516 × Length
+// Internal Conversion:
+// - Convert sides to MM: side_mm = side_inch * 25.4
+// - Thickness stays in MM
+// - Length stays in FEET
+//
+// Formulas (all dimensions in mm, length in feet):
+// Square:    W = (side_mm - thickness_mm) * thickness_mm * 0.00957 * length_ft
+// Rectangle: W = (side1_mm + side2_mm - 2*thickness_mm) * thickness_mm * 0.004785 * length_ft
+// Round:     W = (side_mm - thickness_mm) * thickness_mm * 0.007516 * length_ft
 
 export type Shape = 'square' | 'rectangle' | 'round';
+export type RoundInputType = 'od' | 'nb';
 
 export interface WeightInput {
   shape: Shape;
-  dimUnit: 'mm' | 'inch';
-  thicknessUnit: 'mm' | 'inch';
-  side?: number;      // square
-  side1?: number;     // rectangle
-  side2?: number;     // rectangle
-  od?: number;        // round
-  thickness: number;
-  length: number;
-  lengthUnit: 'mm' | 'inch' | 'm' | 'feet';
-  // For round pipe NB mode
-  useNB?: boolean;
+  // For square/rectangle: side is always in inches
+  side?: number;      // square (inches)
+  side1?: number;     // rectangle (inches)
+  side2?: number;     // rectangle (inches)
+  // For round: OD or NB value
+  od?: number;        // round pipe outer diameter or NB value
+  roundInputType?: RoundInputType; // 'od' or 'nb'
+  // Thickness always in mm
+  thickness: number;  // mm
+  // Length always in feet
+  length: number;     // feet
 }
 
-export function calcWeight(input: WeightInput): number {
-  // Step 1: Convert dimension inputs to INCHES for calculation
-  // Side/OD should be in inches, Thickness should stay in MM for the formula
-  const dimToInch = input.dimUnit === 'mm' ? (1 / 25.4) : 1;
-  
-  // Thickness MUST be in MM for the formula (convert if in inches)
-  const thickToMM = input.thicknessUnit === 'inch' ? 25.4 : 1;
-  const thickness_mm = input.thickness * thickToMM;
+export interface WeightResult {
+  weight: number;
+  valid: boolean;
+  error?: string;
+}
 
-  // Step 2: Convert length to FEET
-  let length_ft: number;
-  switch (input.lengthUnit) {
-    case 'mm': length_ft = input.length / 304.8; break;
-    case 'inch': length_ft = input.length / 12; break;
-    case 'm': length_ft = input.length * 3.28084; break;
-    case 'feet': default: length_ft = input.length; break;
+export function calcWeight(input: WeightInput): WeightResult {
+  // Validation
+  if (input.thickness <= 0) {
+    return { weight: 0, valid: false, error: 'Thickness must be > 0' };
+  }
+  if (input.length <= 0) {
+    return { weight: 0, valid: false, error: 'Length must be > 0' };
   }
 
-  // Step 3: Calculate weight using formulas (side/OD in inch, thickness in mm, length in feet)
+  const thickness_mm = input.thickness; // Already in mm
+  const length_ft = input.length;       // Already in feet
+
   switch (input.shape) {
     case 'square': {
-      // W = (Side − Thickness) × Thickness × 0.00957 × Length
-      // Side in inches, Thickness in mm
-      const side_inch = (input.side ?? 0) * dimToInch;
-      return (side_inch - thickness_mm) * thickness_mm * 0.00957 * length_ft;
-    }
-    case 'rectangle': {
-      // W = ((S1 + S2) − 2 × Thickness) × Thickness × 0.004785 × Length
-      const s1_inch = (input.side1 ?? 0) * dimToInch;
-      const s2_inch = (input.side2 ?? 0) * dimToInch;
-      return ((s1_inch + s2_inch) - 2 * thickness_mm) * thickness_mm * 0.004785 * length_ft;
-    }
-    case 'round': {
-      const od_inch = (input.od ?? 0) * dimToInch;
-      if (input.useNB) {
-        // NB Mode: W = ((NB − Thickness) × 0.88261) × Thickness × 0.007516 × Length
-        return ((od_inch - thickness_mm) * 0.88261) * thickness_mm * 0.007516 * length_ft;
-      } else {
-        // OD Mode: W = (OD − Thickness) × Thickness × 0.007516 × Length
-        return (od_inch - thickness_mm) * thickness_mm * 0.007516 * length_ft;
+      // Convert side from inches to mm
+      const side_mm = (input.side ?? 0) * 25.4;
+      
+      // Validation: Side must be > Thickness
+      if (side_mm <= thickness_mm) {
+        return { weight: 0, valid: false, error: 'Side must be > Thickness' };
       }
+      
+      // Formula: (side_mm - thickness_mm) * thickness_mm * 0.00957 * length_ft
+      const weight = (side_mm - thickness_mm) * thickness_mm * 0.00957 * length_ft;
+      return { weight: Math.round(weight * 1000) / 1000, valid: true };
+    }
+    
+    case 'rectangle': {
+      // Convert sides from inches to mm
+      const side1_mm = (input.side1 ?? 0) * 25.4;
+      const side2_mm = (input.side2 ?? 0) * 25.4;
+      
+      // Validation: Combined sides must handle 2x thickness
+      if ((side1_mm + side2_mm) <= 2 * thickness_mm) {
+        return { weight: 0, valid: false, error: 'Sides too small for thickness' };
+      }
+      
+      // Formula: (side1_mm + side2_mm - 2*thickness_mm) * thickness_mm * 0.004785 * length_ft
+      const weight = (side1_mm + side2_mm - 2 * thickness_mm) * thickness_mm * 0.004785 * length_ft;
+      return { weight: Math.round(weight * 1000) / 1000, valid: true };
+    }
+    
+    case 'round': {
+      // OD or NB value - convert to mm
+      let side_mm: number;
+      if (input.roundInputType === 'nb') {
+        // NB is a nominal size - look up OD from table or use direct conversion
+        const nbValue = input.od ?? 0;
+        const odFromTable = NB_OD_TABLE[nbValue];
+        side_mm = odFromTable ?? (nbValue * 25.4); // fallback to inch conversion
+      } else {
+        // OD in inches, convert to mm
+        side_mm = (input.od ?? 0) * 25.4;
+      }
+      
+      // Validation: OD must be > Thickness
+      if (side_mm <= thickness_mm) {
+        return { weight: 0, valid: false, error: 'OD/NB must be > Thickness' };
+      }
+      
+      // Formula: (side_mm - thickness_mm) * thickness_mm * 0.007516 * length_ft
+      const weight = (side_mm - thickness_mm) * thickness_mm * 0.007516 * length_ft;
+      return { weight: Math.round(weight * 1000) / 1000, valid: true };
     }
   }
+}
+
+// Legacy function for backward compatibility
+export function calcWeightSimple(input: {
+  shape: Shape;
+  dimUnit?: 'mm' | 'inch';
+  thicknessUnit?: 'mm' | 'inch';
+  side?: number;
+  side1?: number;
+  side2?: number;
+  od?: number;
+  thickness: number;
+  length: number;
+  lengthUnit?: 'mm' | 'inch' | 'm' | 'feet';
+  useNB?: boolean;
+}): number {
+  // Convert old interface to new
+  const newInput: WeightInput = {
+    shape: input.shape,
+    side: input.side,
+    side1: input.side1,
+    side2: input.side2,
+    od: input.od,
+    roundInputType: input.useNB ? 'nb' : 'od',
+    thickness: input.thicknessUnit === 'inch' ? input.thickness * 25.4 : input.thickness,
+    length: input.lengthUnit === 'm' ? input.length * 3.28084 : 
+            input.lengthUnit === 'mm' ? input.length / 304.8 :
+            input.lengthUnit === 'inch' ? input.length / 12 : input.length,
+  };
+  
+  const result = calcWeight(newInput);
+  return result.weight;
 }
 
 // ─── Short Item Name Generator ──────────────────────────────────────

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { Platform, Text } from 'react-native';
 
 export default function TabLayout() {
   return (
@@ -33,24 +33,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="purchase"
-        options={{
-          title: 'Purchase',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'cart' : 'cart-outline'} size={22} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="calculator"
-        options={{
-          title: 'Calculator',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'calculator' : 'calculator-outline'} size={22} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="inventory"
         options={{
           title: 'Inventory',
@@ -60,24 +42,35 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="warehouse"
-        options={{
-          title: 'Layout',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="sales"
         options={{
           title: 'Sales',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={22} color={color} />
           ),
         }}
       />
-      {/* Hidden tabs — accessible via Home quick view */}
+      <Tabs.Screen
+        name="pricer"
+        options={{
+          title: 'Pricer',
+          tabBarIcon: ({ color, focused }) => (
+            <Text style={{ fontSize: 18, fontWeight: '700', color }}></Text>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="calculator"
+        options={{
+          title: 'Calc',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'calculator' : 'calculator-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      {/* Hidden tabs — accessible via Home quick actions */}
+      <Tabs.Screen name="purchase" options={{ href: null }} />
+      <Tabs.Screen name="warehouse" options={{ href: null }} />
       <Tabs.Screen name="filter" options={{ href: null }} />
       <Tabs.Screen name="parchi" options={{ href: null }} />
       <Tabs.Screen name="recent" options={{ href: null }} />
