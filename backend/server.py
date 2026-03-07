@@ -278,6 +278,62 @@ async def manual_drive_connect(data: ManualTokenConnect):
         logger.error(f"Manual connect failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Manual connect failed: {str(e)}")
 
+# 2.5 EXCHANGE CODE FROM EXPO-AUTH-SESSION
+class ExchangeCodeRequest(BaseModel):
+    session_id: str
+    auth_code: str
+    redirect_uri: str  # The redirect URI used by expo-auth-session
+
+@api_router.post("/oauth/drive/exchange-code")
+async def exchange_code(data: ExchangeCodeRequest):
+    """Exchange authorization code from expo-auth-session for tokens"""
+    try:
+        logger.info(f"Exchanging code for session {data.session_id} with redirect_uri: {data.redirect_uri}")
+        
+        # Exchange code for tokens using the redirect_uri that was used
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [data.redirect_uri]
+                }
+            },
+            scopes=['https://www.googleapis.com/auth/drive.readonly'],
+            redirect_uri=data.redirect_uri
+        )
+        
+        flow.fetch_token(code=data.auth_code)
+        credentials = flow.credentials
+        
+        # Store credentials
+        creds_data = {
+            "session_id": data.session_id,
+            "access_token": credentials.token,
+            "refresh_token": credentials.refresh_token,
+            "token_uri": credentials.token_uri,
+            "client_id": credentials.client_id,
+            "client_secret": credentials.client_secret,
+            "scopes": credentials.scopes,
+            "expiry": credentials.expiry.isoformat() if credentials.expiry else None,
+            "updated_at": datetime.now(timezone.utc)
+        }
+        
+        await db.drive_credentials.update_one(
+            {"session_id": data.session_id},
+            {"$set": creds_data},
+            upsert=True
+        )
+        
+        logger.info(f"Drive connected via exchange-code for session {data.session_id}")
+        return {"status": "connected", "session_id": data.session_id}
+    
+    except Exception as e:
+        logger.error(f"Exchange code failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Code exchange failed: {str(e)}")
+
 # 3. HANDLE OAUTH CALLBACK
 @api_router.get("/oauth/drive/callback")
 async def drive_callback(request: Request, code: str = Query(...), state: str = Query(...)):

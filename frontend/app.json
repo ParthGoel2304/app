@@ -1,15 +1,16 @@
 {
   "expo": {
     "name": "Smart Excel Reader",
-    "slug": "frontend",
+    "slug": "smart-excel-reader",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "smart-excel-reader",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "app.emergent.excel"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,21 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "app.emergent.excel"
+      "package": "app.emergent.excel",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "smart-excel-reader",
+              "host": "oauth",
+              "pathPrefix": "/callback"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

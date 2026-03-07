@@ -1,16 +1,24 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Modal, Linking
+  ActivityIndicator, Alert, TextInput, Modal, Platform
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+
+// Required for web OAuth redirect
+WebBrowser.maybeCompleteAuthSession();
+
+// Google OAuth configuration
+const GOOGLE_CLIENT_ID = '352071874328-ehoi67f6ug14o1hbjodg18pvdu8ni110.apps.googleusercontent.com';
+const SCOPES = ['https://www.googleapis.com/auth/drive.readonly'];
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -20,7 +28,16 @@ export default function LoginScreen() {
   const [manualCode, setManualCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Discovery document for Google OAuth
+  const discovery = AuthSession.useAutoDiscovery('https://accounts.google.com');
+  
+  // Generate redirect URI for expo-auth-session
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'smart-excel-reader',
+    path: 'oauth/callback',
+  });
 
   // Check if already connected on mount
   useEffect(() => {
@@ -49,11 +66,12 @@ export default function LoginScreen() {
     } catch { return false; }
   };
 
+  // Main OAuth handler using expo-auth-session
   const handleConnectDrive = async () => {
     try {
       setLoading(true);
       
-      // Create session
+      // Create session first
       let sid = sessionId;
       if (!sid) {
         const sessionRes = await axios.post(`${BACKEND_URL}/api/session/create`);
@@ -62,21 +80,114 @@ export default function LoginScreen() {
         setSessionId(sid);
       }
 
-      // Get auth URL
+      // Use expo-auth-session for mobile-compatible OAuth
+      if (Platform.OS !== 'web' && discovery) {
+        // Mobile: Use AuthSession which opens system browser (not WebView)
+        const authRequest = new AuthSession.AuthRequest({
+          clientId: GOOGLE_CLIENT_ID,
+          redirectUri: redirectUri,
+          scopes: SCOPES,
+          responseType: AuthSession.ResponseType.Code,
+          extraParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        });
+
+        const result = await authRequest.promptAsync(discovery);
+        
+        if (result.type === 'success' && result.params.code) {
+          // Exchange the code via our backend
+          await exchangeCodeWithBackend(sid!, result.params.code);
+          return;
+        } else if (result.type === 'cancel') {
+          Alert.alert('Cancelled', 'Sign-in was cancelled.');
+          setLoading(false);
+          return;
+        } else if (result.type === 'error') {
+          // Fall back to manual code entry
+          Alert.alert(
+            'OAuth Error',
+            'The automatic sign-in failed. Please use manual code entry.',
+            [
+              { text: 'Try Manual Entry', onPress: () => openBackendOAuthFlow(sid!) }
+            ]
+          );
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Web or fallback: Use backend-generated OAuth URL
+      await openBackendOAuthFlow(sid!);
+      
+    } catch (e: any) {
+      console.error('OAuth error:', e);
+      Alert.alert('Error', e.response?.data?.detail || 'Failed to initiate connection');
+      setLoading(false);
+    }
+  };
+
+  // Exchange authorization code with backend
+  const exchangeCodeWithBackend = async (sid: string, code: string) => {
+    try {
+      const res = await axios.post(`${BACKEND_URL}/api/oauth/drive/exchange-code`, {
+        session_id: sid,
+        auth_code: code,
+        redirect_uri: redirectUri, // Important: send the redirect URI used
+      });
+      
+      if (res.data.status === 'connected') {
+        router.replace('/(tabs)/home' as any);
+      } else {
+        throw new Error('Connection failed');
+      }
+    } catch (e: any) {
+      console.error('Code exchange error:', e);
+      Alert.alert(
+        'Connection Failed',
+        'Failed to exchange authorization code. Try manual entry.',
+        [
+          { text: 'OK', onPress: () => setShowManualCode(true) }
+        ]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Backend OAuth flow (for web and fallback)
+  const openBackendOAuthFlow = async (sid: string) => {
+    try {
       const oauthRes = await axios.get(
         `${BACKEND_URL}/api/oauth/drive/connect?session_id=${sid}`
       );
       const url = oauthRes.data.authorization_url;
       setAuthUrl(url);
 
-      // Open browser for Google auth
-      await WebBrowser.openBrowserAsync(url);
+      // Open in system browser (not WebView)
+      if (Platform.OS === 'web') {
+        window.open(url, '_blank');
+      } else {
+        // Use openAuthSessionAsync which uses system browser on mobile
+        const result = await WebBrowser.openAuthSessionAsync(url, redirectUri);
+        
+        if (result.type === 'success' && result.url) {
+          // Try to extract code from redirect URL
+          const urlParams = new URL(result.url).searchParams;
+          const code = urlParams.get('code');
+          if (code) {
+            await exchangeCodeWithBackend(sid, code);
+            return;
+          }
+        }
+      }
 
       // Start polling for connection
-      startPolling(sid!);
+      startPolling(sid);
       
     } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.detail || 'Failed to initiate connection');
+      console.error('Backend OAuth error:', e);
       setLoading(false);
     }
   };
@@ -109,7 +220,7 @@ export default function LoginScreen() {
     } else {
       Alert.alert(
         'Not Connected Yet',
-        'If you completed Google sign-in but got a "Page not found" error, that\'s okay! Tap "Enter Code Manually" to connect.',
+        'If you completed Google sign-in but got an error, tap "Enter Code Manually" to connect.',
         [
           { text: 'Try Again', style: 'cancel' },
           { text: 'Enter Code Manually', onPress: () => setShowManualCode(true) }
@@ -118,7 +229,7 @@ export default function LoginScreen() {
     }
   };
 
-  // Manual code submission (fallback for when redirect fails with 404)
+  // Manual code submission (fallback)
   const handleManualCodeSubmit = async () => {
     if (!manualCode.trim()) return;
     const sid = sessionId || await AsyncStorage.getItem('session_id');
@@ -143,7 +254,13 @@ export default function LoginScreen() {
 
   const handleOpenAuthUrl = async () => {
     if (authUrl) {
-      await Linking.openURL(authUrl);
+      if (Platform.OS === 'web') {
+        window.open(authUrl, '_blank');
+      } else {
+        await WebBrowser.openBrowserAsync(authUrl, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        });
+      }
     } else {
       handleConnectDrive();
     }
@@ -165,7 +282,7 @@ export default function LoginScreen() {
           {[
             { icon: 'search', text: 'Smart size filter with exact matching' },
             { icon: 'document-text', text: 'Create quotation Parchis instantly' },
-            { icon: 'volume-medium', text: 'Hindi audio readout for sizes' },
+            { icon: 'calculator', text: 'Steel weight calculator' },
           ].map((f, i) => (
             <View key={i} style={styles.featureRow}>
               <View style={styles.featureIcon}>
@@ -209,7 +326,7 @@ export default function LoginScreen() {
               data-testid="manual-code-btn"
             >
               <Ionicons name="key" size={18} color="#FA7B17" />
-              <Text style={styles.manualBtnText}>Got 404? Enter code manually</Text>
+              <Text style={styles.manualBtnText}>Enter code manually</Text>
             </TouchableOpacity>
           </>
         )}
@@ -224,8 +341,7 @@ export default function LoginScreen() {
           <View style={styles.manualModal}>
             <Text style={styles.modalTitle}>Manual Connection</Text>
             <Text style={styles.modalDesc}>
-              If you see a "Page not found" after Google sign-in, don't worry!{'\n\n'}
-              Look at your browser's URL bar - it will contain a <Text style={styles.highlight}>code=</Text> parameter.{'\n\n'}
+              After completing Google sign-in, look at your browser's URL bar.{'\n\n'}
               Copy everything after <Text style={styles.highlight}>code=</Text> and before <Text style={styles.highlight}>&</Text>, then paste it below:
             </Text>
             
@@ -300,7 +416,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16, paddingHorizontal: 32,
     borderRadius: 14, alignItems: 'center',
     width: '100%', gap: 12,
-    boxShadow: '0 4px 12px rgba(66,133,244,0.3)',
   },
   btnDisabled: { backgroundColor: '#5f6368' },
   connectBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
@@ -333,7 +448,7 @@ const styles = StyleSheet.create({
   codeInput: {
     backgroundColor: '#0f3460', borderWidth: 1, borderColor: '#4285F4',
     borderRadius: 12, padding: 14, fontSize: 13, color: '#fff',
-    minHeight: 70, textAlignVertical: 'top', fontFamily: 'monospace',
+    minHeight: 70, textAlignVertical: 'top',
   },
   reopenBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
