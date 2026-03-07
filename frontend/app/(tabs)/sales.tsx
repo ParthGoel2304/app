@@ -15,7 +15,7 @@ const ROW_NUM_W = 32;
 
 // Sales FY 25-26 file config
 const SALES_FILE_NAME = 'Sales FY 25-26';
-const SALES_SHEET_NAME = 'Debtors'; // Updated to use Debtors sheet
+const SALES_SHEET_NAME = 'Sales'; // The actual sheet name in the Excel file
 
 export default function SalesTab() {
   const [loading, setLoading] = useState(true);
@@ -317,7 +317,7 @@ function Header({ showSearch, setShowSearch }: HeaderProps) {
   return (
     <View style={st.header}>
       <Ionicons name="trending-up" size={24} color="#34A853" />
-      <Text style={st.headerTitle}>Debtors (FY 25-26)</Text>
+      <Text style={st.headerTitle}>Sales (FY 25-26)</Text>
       <View style={{ flex: 1 }} />
       <TouchableOpacity 
         style={[st.searchBtn, showSearch && st.searchBtnActive]} 

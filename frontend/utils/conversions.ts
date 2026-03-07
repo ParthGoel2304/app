@@ -79,14 +79,13 @@ export const LENGTH_UNITS: { key: LengthUnit; label: string; hint: string }[] = 
 
 // ─── Weight Calculator ──────────────────────────────────────────────
 // STEEL WEIGHT FORMULAS - User-specified
-// Input: Size/thickness in inches, length in feet
+// Input: Side/OD in INCHES, Thickness in MM, Length in FEET
 // Output: Weight in kg
 //
-// Square:    W = (side × 25.4 − thickness) × thickness × 0.00957 × length
-// Rectangle: W = ((s1 + s2) × 25.4 − 2 × thickness) × thickness × 0.004785 × length
-// Round:     W = (OD − thickness) × thickness × 0.007516 × length
-//
-// Note: If mm is selected, code converts to inch first: inch = mm / 25.4
+// Square:    W = (Side − Thickness) × Thickness × 0.00957 × Length
+// Rectangle: W = ((S1 + S2) − 2 × Thickness) × Thickness × 0.004785 × Length
+// Round OD:  W = (OD − Thickness) × Thickness × 0.007516 × Length
+// Round NB:  W = ((NB − Thickness) × 0.88261) × Thickness × 0.007516 × Length
 
 export type Shape = 'square' | 'rectangle' | 'round';
 
@@ -101,44 +100,51 @@ export interface WeightInput {
   thickness: number;
   length: number;
   lengthUnit: 'mm' | 'inch' | 'm' | 'feet';
+  // For round pipe NB mode
+  useNB?: boolean;
 }
 
 export function calcWeight(input: WeightInput): number {
-  // Step 1: Convert dimensions to inches (formulas expect inches)
-  // If input is in mm, convert to inch: inch = mm / 25.4
+  // Step 1: Convert dimension inputs to INCHES for calculation
+  // Side/OD should be in inches, Thickness should stay in MM for the formula
   const dimToInch = input.dimUnit === 'mm' ? (1 / 25.4) : 1;
-  const thickToInch = input.thicknessUnit === 'mm' ? (1 / 25.4) : 1;
+  
+  // Thickness MUST be in MM for the formula (convert if in inches)
+  const thickToMM = input.thicknessUnit === 'inch' ? 25.4 : 1;
+  const thickness_mm = input.thickness * thickToMM;
 
-  // Thickness in inches
-  const thickness = input.thickness * thickToInch;
-
-  // Step 2: Convert length to feet (formulas expect feet)
+  // Step 2: Convert length to FEET
   let length_ft: number;
   switch (input.lengthUnit) {
-    case 'mm': length_ft = input.length / 304.8; break;  // mm to feet
-    case 'inch': length_ft = input.length / 12; break;   // inch to feet
-    case 'm': length_ft = input.length * 3.28084; break; // m to feet
+    case 'mm': length_ft = input.length / 304.8; break;
+    case 'inch': length_ft = input.length / 12; break;
+    case 'm': length_ft = input.length * 3.28084; break;
     case 'feet': default: length_ft = input.length; break;
   }
 
-  // Step 3: Calculate weight based on shape using exact formulas
+  // Step 3: Calculate weight using formulas (side/OD in inch, thickness in mm, length in feet)
   switch (input.shape) {
     case 'square': {
-      // W = (side × 25.4 − thickness) × thickness × 0.00957 × length
-      // side is in inches, thickness in inches, length in feet
+      // W = (Side − Thickness) × Thickness × 0.00957 × Length
+      // Side in inches, Thickness in mm
       const side_inch = (input.side ?? 0) * dimToInch;
-      return (side_inch * 25.4 - thickness) * thickness * 0.00957 * length_ft;
+      return (side_inch - thickness_mm) * thickness_mm * 0.00957 * length_ft;
     }
     case 'rectangle': {
-      // W = ((s1 + s2) × 25.4 − 2 × thickness) × thickness × 0.004785 × length
+      // W = ((S1 + S2) − 2 × Thickness) × Thickness × 0.004785 × Length
       const s1_inch = (input.side1 ?? 0) * dimToInch;
       const s2_inch = (input.side2 ?? 0) * dimToInch;
-      return ((s1_inch + s2_inch) * 25.4 - 2 * thickness) * thickness * 0.004785 * length_ft;
+      return ((s1_inch + s2_inch) - 2 * thickness_mm) * thickness_mm * 0.004785 * length_ft;
     }
     case 'round': {
-      // W = (OD − thickness) × thickness × 0.007516 × length
       const od_inch = (input.od ?? 0) * dimToInch;
-      return (od_inch - thickness) * thickness * 0.007516 * length_ft;
+      if (input.useNB) {
+        // NB Mode: W = ((NB − Thickness) × 0.88261) × Thickness × 0.007516 × Length
+        return ((od_inch - thickness_mm) * 0.88261) * thickness_mm * 0.007516 * length_ft;
+      } else {
+        // OD Mode: W = (OD − Thickness) × Thickness × 0.007516 × Length
+        return (od_inch - thickness_mm) * thickness_mm * 0.007516 * length_ft;
+      }
     }
   }
 }

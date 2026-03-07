@@ -26,12 +26,13 @@ const COL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 
 // Columns to hide by default for JGT files: B=1, C=2, D=3, J=9, K=10, L=11
 const JGT_HIDDEN_COLS = [1, 2, 3, 9, 10, 11];
 
-// JGT Page configuration
-const JGT_PAGES = [
-  { name: 'Page 1', startRow: 1, endRow: 38, startCol: 'A', endCol: 'O' },
-  { name: 'Page 2', startRow: 39, endRow: 76, startCol: 'A', endCol: 'O' },
-  { name: 'Page 3', startRow: 77, endRow: 114, startCol: 'A', endCol: 'O' },
-  { name: 'Page 4', startRow: 115, endRow: 155, startCol: 'A', endCol: 'O' },
+// Default JGT Page configuration (user-editable)
+// Updated print ranges as per specification
+const DEFAULT_JGT_PAGES = [
+  { name: 'Page 1', startRow: 1, endRow: 42, startCol: 'A', endCol: 'O' },
+  { name: 'Page 2', startRow: 43, endRow: 74, startCol: 'A', endCol: 'O' },
+  { name: 'Page 3', startRow: 77, endRow: 112, startCol: 'A', endCol: 'O' },
+  { name: 'Page 4', startRow: 115, endRow: 153, startCol: 'A', endCol: 'O' },
 ];
 
 const ROWS_PER_PAGE = 24;
@@ -218,7 +219,7 @@ export default function SheetViewScreen() {
       // JGT file: use predefined page ranges
       const sortedPages = [...selectedPages].sort((a, b) => a - b);
       sortedPages.forEach((pageIdx, pIdx) => {
-        const pageConfig = JGT_PAGES[pageIdx];
+        const pageConfig = DEFAULT_JGT_PAGES[pageIdx];
         if (!pageConfig) return;
 
         html += `<h2>${stockProfile?.fileName || 'Sheet'} - ${pageConfig.name}</h2>`;
@@ -502,7 +503,7 @@ export default function SheetViewScreen() {
               <>
                 <Text style={st.modalHint}>Select pages to print (JGT file detected)</Text>
                 <View style={st.pageGrid}>
-                  {JGT_PAGES.map((page, idx) => (
+                  {DEFAULT_JGT_PAGES.map((page, idx) => (
                     <TouchableOpacity 
                       key={idx}
                       style={[st.pageCard, selectedPages.has(idx) && st.pageCardSelected]}
