@@ -70,14 +70,16 @@ export default function LoginScreen() {
       const url = oauthRes.data.authorization_url;
       setAuthUrl(url);
 
-      // Open OAuth in system browser (not WebView)
-      // Using Linking.openURL which opens the default browser
+      // Open OAuth in system browser (Chrome Custom Tabs / SFSafariViewController)
+      // WebBrowser.openBrowserAsync opens a REAL browser tab, not a WebView
+      // This avoids the "disallowed_useragent" error from Google
       if (Platform.OS === 'web') {
         window.open(url, '_blank');
       } else {
-        // Use Linking.openURL to open in default browser (Chrome/Safari)
-        // This avoids the "disallowed_useragent" error
-        await Linking.openURL(url);
+        await WebBrowser.openBrowserAsync(url, {
+          showInRecents: true,
+          createTask: true,
+        });
       }
 
       // Start polling for connection status
@@ -156,7 +158,10 @@ export default function LoginScreen() {
       if (Platform.OS === 'web') {
         window.open(authUrl, '_blank');
       } else {
-        await Linking.openURL(authUrl);
+        await WebBrowser.openBrowserAsync(authUrl, {
+          showInRecents: true,
+          createTask: true,
+        });
       }
     } else {
       handleConnectDrive();
