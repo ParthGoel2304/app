@@ -13,12 +13,22 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 type TabKey = 'debtors' | 'bills' | 'payments';
 
-interface DebtorRow {
+interface DebtorItem {
   name: string;
-  totalBilled: number;
-  totalPaid: number;
-  outstanding: number;
-  rows: string[][];
+  city: string;
+  debtTotal: number;
+}
+
+interface BillItem {
+  month: string;
+  invoiceDate: string;
+  dueDate: string;
+  city: string;
+  daysLeft: string;
+  dealerName: string;
+  dueAmount: number;
+  weight: string;
+  billId: string;
 }
 
 interface PaymentLocal {
@@ -36,100 +46,103 @@ export default function DebtorsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  // Data states
-  const [debtorsData, setDebtorsData] = useState<string[][]>([]);
-  const [billsData, setBillsData] = useState<string[][]>([]);
-  const [paymentsData, setPaymentsData] = useState<string[][]>([]);
+  // Data
+  const [debtors, setDebtors] = useState<DebtorItem[]>([]);
+  const [bills, setBills] = useState<BillItem[]>([]);
   const [localPayments, setLocalPayments] = useState<PaymentLocal[]>([]);
 
-  // Record payment modal
+  // Filters for bills
+  const [billFilter, setBillFilter] = useState<'all' | 'overdue' | 'upcoming'>('all');
+
+  // Payment modal
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({
-    debtor_name: '', amount: '', date: '', reference: '', notes: ''
-  });
+  const [paymentForm, setPaymentForm] = useState({ debtor_name: '', amount: '', date: '', reference: '', notes: '' });
 
-  // Selected debtor for detail view
-  const [selectedDebtor, setSelectedDebtor] = useState<string | null>(null);
+  // Detail modal
+  const [selectedDebtor, setSelectedDebtor] = useState<DebtorItem | null>(null);
 
-  useFocusEffect(useCallback(() => {
-    loadData();
-    loadLocalPayments();
-  }, []));
+  useFocusEffect(useCallback(() => { loadAll(); }, []));
 
-  const getSessionId = async () => {
-    return await AsyncStorage.getItem('session_id');
+  const getSid = async () => await AsyncStorage.getItem('session_id');
+
+  const findSalesFile = async (sid: string) => {
+    const res = await axios.get(`${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=true`);
+    const files = res.data.files || [];
+    return files.find((f: any) => f.file_name.toLowerCase().includes('sales'));
   };
 
-  const findDebtorFile = async (sid: string) => {
-    const filesRes = await axios.get(`${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=true`);
-    const files = filesRes.data.files || [];
-    // Use the file containing "Sales" in its name
-    return files.find((f: any) =>
-      f.file_name.toLowerCase().includes('sales')
-    );
-  };
-
-  const loadSheetData = async (sid: string, fileId: string, sheetName: string) => {
-    const res = await axios.get(
-      `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${fileId}&sheet_name=${encodeURIComponent(sheetName)}&cell_range=A1:Z500&_t=${Date.now()}`
-    );
-    return res.data.data || [];
-  };
-
-  const loadData = async () => {
+  const loadAll = async () => {
     setLoading(true);
     setError(null);
     try {
-      const sid = await getSessionId();
-      if (!sid) { setError('No session'); return; }
+      const sid = await getSid();
+      if (!sid) { setError('no_session'); return; }
 
-      const file = await findDebtorFile(sid);
+      const file = await findSalesFile(sid);
       if (!file) { setError('no_file'); return; }
 
-      // Get sheets list
-      const sheetsRes = await axios.get(
-        `${BACKEND_URL}/api/drive/file/${file.file_id}/sheets?session_id=${sid}`
-      );
+      const sheetsRes = await axios.get(`${BACKEND_URL}/api/drive/file/${file.file_id}/sheets?session_id=${sid}`);
       const sheets: string[] = sheetsRes.data.sheet_names || [];
 
-      // Primary: Load "Sales" sheet as the debtors data source
-      const salesSheet = sheets.find(s => s.toLowerCase() === 'sales') || 
-                         sheets.find(s => s.toLowerCase().includes('sales'));
+      // Load "Sales Summary" sheet for debtors
+      const summarySheet = sheets.find(s => s.toLowerCase().includes('sales summary')) || sheets.find(s => s.toLowerCase().includes('summary'));
+      if (summarySheet) {
+        const dataRes = await axios.get(
+          `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${file.file_id}&sheet_name=${encodeURIComponent(summarySheet)}&cell_range=A1:Z500&_t=${Date.now()}`
+        );
+        const rows = dataRes.data.data || [];
+        // A=name (from row 2), B=city, C=debt total ("-" means 0)
+        const items: DebtorItem[] = [];
+        for (let i = 1; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r[0] || String(r[0]).trim() === '') continue;
+          const rawDebt = String(r[2] || '0').trim();
+          const debtTotal = rawDebt === '-' || rawDebt === ' - ' || rawDebt === '' ? 0 : parseFloat(rawDebt) || 0;
+          items.push({
+            name: String(r[0]).trim(),
+            city: String(r[1] || '').trim(),
+            debtTotal,
+          });
+        }
+        setDebtors(items);
+      }
+
+      // Load "Sales" sheet for bills
+      const salesSheet = sheets.find(s => s.toLowerCase() === 'sales') || sheets.find(s => s.toLowerCase().includes('sales') && !s.toLowerCase().includes('summary'));
       if (salesSheet) {
-        const data = await loadSheetData(sid, file.file_id, salesSheet);
-        setDebtorsData(data);
+        const dataRes = await axios.get(
+          `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${file.file_id}&sheet_name=${encodeURIComponent(salesSheet)}&cell_range=A1:Z500&_t=${Date.now()}`
+        );
+        const rows = dataRes.data.data || [];
+        // A=Month, B=Invoice Date, C=Due Date, E=City, G=Days Left, H=Dealer, I=Due Amt, J=Weight, K=Bill ID
+        const items: BillItem[] = [];
+        for (let i = 1; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r[0] && !r[7]) continue; // skip empty
+          const rawAmt = String(r[8] || '0').trim();
+          items.push({
+            month: String(r[0] || '').trim(),
+            invoiceDate: String(r[1] || '').trim(),
+            dueDate: String(r[2] || '').trim(),
+            city: String(r[4] || '').trim(),
+            daysLeft: String(r[6] || '').trim(),
+            dealerName: String(r[7] || '').trim(),
+            dueAmount: rawAmt === '-' ? 0 : parseFloat(rawAmt) || 0,
+            weight: String(r[9] || '').trim(),
+            billId: String(r[10] || '').trim(),
+          });
+        }
+        setBills(items);
       }
 
-      // Also load Bills sheet if it exists
-      const billsSheet = sheets.find(s =>
-        s.toLowerCase().includes('bill') || s.toLowerCase().includes('invoice') || s.toLowerCase().includes('original')
-      );
-      if (billsSheet) {
-        const data = await loadSheetData(sid, file.file_id, billsSheet);
-        setBillsData(data);
-      }
-
-      // Also load Payments sheet if it exists
-      const paySheet = sheets.find(s => s.toLowerCase().includes('payment'));
-      if (paySheet) {
-        const data = await loadSheetData(sid, file.file_id, paySheet);
-        setPaymentsData(data);
-      }
+      // Load local payments
+      const payRes = await axios.get(`${BACKEND_URL}/api/debtors/payments/list?session_id=${sid}`);
+      setLocalPayments(payRes.data.payments || []);
     } catch (err: any) {
-      console.error('Debtors load error:', err);
-      setError(err.message || 'Failed to load data');
+      setError(err.message || 'Failed to load');
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadLocalPayments = async () => {
-    try {
-      const sid = await getSessionId();
-      if (!sid) return;
-      const res = await axios.get(`${BACKEND_URL}/api/debtors/payments/list?session_id=${sid}`);
-      setLocalPayments(res.data.payments || []);
-    } catch {}
   };
 
   const handleRecordPayment = async () => {
@@ -138,7 +151,7 @@ export default function DebtorsScreen() {
       return;
     }
     try {
-      const sid = await getSessionId();
+      const sid = await getSid();
       if (!sid) return;
       await axios.post(`${BACKEND_URL}/api/debtors/payments/record?session_id=${sid}`, {
         debtor_name: paymentForm.debtor_name.trim(),
@@ -149,100 +162,61 @@ export default function DebtorsScreen() {
       });
       setShowPaymentModal(false);
       setPaymentForm({ debtor_name: '', amount: '', date: '', reference: '', notes: '' });
-      loadLocalPayments();
-      Alert.alert('Success', 'Payment recorded');
+      const payRes = await axios.get(`${BACKEND_URL}/api/debtors/payments/list?session_id=${sid}`);
+      setLocalPayments(payRes.data.payments || []);
+      Alert.alert('Done', 'Payment recorded');
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.detail || 'Failed to record payment');
+      Alert.alert('Error', err.response?.data?.detail || 'Failed');
     }
   };
 
-  // Parse debtors into structured data
-  const debtorsList = React.useMemo(() => {
-    if (debtorsData.length < 2) return [];
-    const headers = debtorsData[0].map(h => (h || '').toString().toLowerCase());
-    const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('party') || h.includes('debtor'));
-    const billedIdx = headers.findIndex(h => h.includes('billed') || h.includes('total') || h.includes('amount'));
-    const paidIdx = headers.findIndex(h => h.includes('paid') || h.includes('received'));
-    const outIdx = headers.findIndex(h => h.includes('outstanding') || h.includes('balance') || h.includes('due'));
+  const handleDeletePayment = async (payment: PaymentLocal) => {
+    Alert.alert('Delete Payment', `Remove payment of ${payment.amount} for ${payment.debtor_name}?`, [
+      { text: 'Cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            const sid = await getSid();
+            if (!sid) return;
+            await axios.delete(
+              `${BACKEND_URL}/api/debtors/payments/${encodeURIComponent(payment.date)}?session_id=${sid}&debtor_name=${encodeURIComponent(payment.debtor_name)}`
+            );
+            const payRes = await axios.get(`${BACKEND_URL}/api/debtors/payments/list?session_id=${sid}`);
+            setLocalPayments(payRes.data.payments || []);
+          } catch {}
+        }
+      }
+    ]);
+  };
 
-    return debtorsData.slice(1).filter(r => r[nameIdx >= 0 ? nameIdx : 0]).map(r => ({
-      name: (r[nameIdx >= 0 ? nameIdx : 0] || '').toString(),
-      totalBilled: parseFloat(r[billedIdx >= 0 ? billedIdx : 1]) || 0,
-      totalPaid: parseFloat(r[paidIdx >= 0 ? paidIdx : 2]) || 0,
-      outstanding: parseFloat(r[outIdx >= 0 ? outIdx : 3]) || 0,
-      rows: [r],
-    }));
-  }, [debtorsData]);
-
-  const filteredDebtors = debtorsList.filter(d =>
-    d.name.toLowerCase().includes(search.toLowerCase())
+  // Filtered data
+  const filteredDebtors = debtors.filter(d =>
+    d.name.toLowerCase().includes(search.toLowerCase()) ||
+    d.city.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalOutstanding = debtorsList.reduce((s, d) => s + d.outstanding, 0);
+  const filteredBills = bills.filter(b => {
+    const q = search.toLowerCase();
+    const matchesSearch = !q || b.dealerName.toLowerCase().includes(q) || b.city.toLowerCase().includes(q) || b.billId.toLowerCase().includes(q) || b.month.toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+    if (billFilter === 'overdue') {
+      const days = parseFloat(b.daysLeft);
+      return !isNaN(days) && days < 0;
+    }
+    if (billFilter === 'upcoming') {
+      const days = parseFloat(b.daysLeft);
+      return !isNaN(days) && days >= 0 && days <= 30;
+    }
+    return true;
+  });
+
+  const totalOutstanding = debtors.reduce((s, d) => s + d.debtTotal, 0);
 
   const tabs: { key: TabKey; label: string; icon: string }[] = [
     { key: 'debtors', label: 'Debtors', icon: 'people' },
     { key: 'bills', label: 'Bills', icon: 'document-text' },
     { key: 'payments', label: 'Payments', icon: 'cash' },
   ];
-
-  const renderDebtorCard = ({ item }: { item: DebtorRow }) => (
-    <TouchableOpacity
-      style={st.card}
-      onPress={() => setSelectedDebtor(item.name)}
-      data-testid={`debtor-${item.name}`}
-    >
-      <View style={st.cardHeader}>
-        <Text style={st.cardName} numberOfLines={1}>{item.name}</Text>
-        <View style={[st.outBadge, { backgroundColor: item.outstanding > 0 ? '#3d1a1a' : '#1a3d1a' }]}>
-          <Text style={[st.outBadgeText, { color: item.outstanding > 0 ? '#EA4335' : '#34A853' }]}>
-            {item.outstanding > 0 ? `Due: ${item.outstanding.toLocaleString('en-IN')}` : 'Settled'}
-          </Text>
-        </View>
-      </View>
-      <View style={st.cardRow}>
-        <View style={st.cardStat}>
-          <Text style={st.cardStatLabel}>Billed</Text>
-          <Text style={st.cardStatVal}>{item.totalBilled.toLocaleString('en-IN')}</Text>
-        </View>
-        <View style={st.cardStat}>
-          <Text style={st.cardStatLabel}>Paid</Text>
-          <Text style={[st.cardStatVal, { color: '#34A853' }]}>{item.totalPaid.toLocaleString('en-IN')}</Text>
-        </View>
-        <View style={st.cardStat}>
-          <Text style={st.cardStatLabel}>Outstanding</Text>
-          <Text style={[st.cardStatVal, { color: '#EA4335' }]}>{item.outstanding.toLocaleString('en-IN')}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderBillRow = ({ item, index }: { item: string[]; index: number }) => {
-    if (index === 0) return null; // skip header
-    return (
-      <View style={st.tableRow}>
-        {item.slice(0, 6).map((cell, ci) => (
-          <Text key={ci} style={[st.tableCell, ci === 0 && st.tableCellFirst]} numberOfLines={1}>
-            {cell || '-'}
-          </Text>
-        ))}
-      </View>
-    );
-  };
-
-  const renderPaymentItem = ({ item }: { item: PaymentLocal }) => (
-    <View style={st.paymentCard}>
-      <View style={st.paymentHeader}>
-        <Text style={st.paymentName}>{item.debtor_name}</Text>
-        <Text style={st.paymentAmt}>{parseFloat(String(item.amount)).toLocaleString('en-IN')}</Text>
-      </View>
-      <View style={st.paymentMeta}>
-        <Text style={st.paymentDate}>{item.date}</Text>
-        {item.reference && <Text style={st.paymentRef}>Ref: {item.reference}</Text>}
-      </View>
-      {item.notes && <Text style={st.paymentNotes}>{item.notes}</Text>}
-    </View>
-  );
 
   if (loading) {
     return (
@@ -257,8 +231,9 @@ export default function DebtorsScreen() {
       <SafeAreaView style={st.container} edges={['top']}>
         <View style={st.center}>
           <Ionicons name="document-text-outline" size={48} color="#5f6368" />
-          <Text style={st.errTitle}>No Debtor File Found</Text>
-          <Text style={st.errSub}>Make sure your Drive folder contains a file with "Sales" in the name.</Text>
+          <Text style={st.errTitle}>No Sales File Found</Text>
+          <Text style={st.errSub}>Make sure your Drive folder has a file with "Sales" in the name, containing a "Sales Summary" sheet.</Text>
+          <TouchableOpacity style={st.retryBtn} onPress={loadAll}><Ionicons name="refresh" size={18} color="#fff" /><Text style={st.retryText}>Retry</Text></TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -279,7 +254,7 @@ export default function DebtorsScreen() {
       <View style={st.summary}>
         <View style={st.summaryItem}>
           <Text style={st.summaryLabel}>Total Debtors</Text>
-          <Text style={st.summaryVal}>{debtorsList.length}</Text>
+          <Text style={st.summaryVal}>{debtors.length}</Text>
         </View>
         <View style={st.summaryDivider} />
         <View style={st.summaryItem}>
@@ -296,87 +271,142 @@ export default function DebtorsScreen() {
       {/* Tabs */}
       <View style={st.tabs}>
         {tabs.map(t => (
-          <TouchableOpacity
-            key={t.key}
-            style={[st.tab, activeTab === t.key && st.tabActive]}
-            onPress={() => setActiveTab(t.key)}
-            data-testid={`tab-${t.key}`}
-          >
+          <TouchableOpacity key={t.key} style={[st.tab, activeTab === t.key && st.tabActive]} onPress={() => { setActiveTab(t.key); setSearch(''); }} data-testid={`tab-${t.key}`}>
             <Ionicons name={t.icon as any} size={16} color={activeTab === t.key ? '#4285F4' : '#9aa0a6'} />
             <Text style={[st.tabText, activeTab === t.key && st.tabTextActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Search */}
-      <View style={st.searchBar}>
-        <Ionicons name="search" size={16} color="#9aa0a6" />
-        <TextInput
-          style={st.searchInput}
-          placeholder="Search..."
-          placeholderTextColor="#5f6368"
-          value={search}
-          onChangeText={setSearch}
-          data-testid="debtors-search"
-        />
+      {/* Search + Filters */}
+      <View style={st.searchRow}>
+        <View style={st.searchBar}>
+          <Ionicons name="search" size={16} color="#9aa0a6" />
+          <TextInput style={st.searchInput} placeholder="Search..." placeholderTextColor="#5f6368" value={search} onChangeText={setSearch} />
+          {search ? <TouchableOpacity onPress={() => setSearch('')}><Ionicons name="close-circle" size={18} color="#5f6368" /></TouchableOpacity> : null}
+        </View>
       </View>
 
-      {/* Content */}
+      {/* Bill filters */}
+      {activeTab === 'bills' && (
+        <View style={st.filterRow}>
+          {(['all', 'overdue', 'upcoming'] as const).map(f => (
+            <TouchableOpacity key={f} style={[st.filterChip, billFilter === f && st.filterChipActive]} onPress={() => setBillFilter(f)} data-testid={`filter-${f}`}>
+              <Text style={[st.filterChipText, billFilter === f && st.filterChipTextActive]}>
+                {f === 'all' ? `All (${bills.length})` : f === 'overdue' ? 'Overdue' : 'Due < 30d'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* DEBTORS TAB */}
       {activeTab === 'debtors' && (
         <FlatList
           data={filteredDebtors}
-          renderItem={renderDebtorCard}
-          keyExtractor={(item, idx) => `${item.name}-${idx}`}
+          keyExtractor={(_, i) => `d-${i}`}
           contentContainerStyle={st.listContent}
-          ListEmptyComponent={
-            <View style={st.center}>
-              <Text style={st.errSub}>No debtors found. Make sure the file has a "Debtors" sheet.</Text>
-            </View>
-          }
+          renderItem={({ item }) => (
+            <TouchableOpacity style={st.card} onPress={() => setSelectedDebtor(item)} data-testid={`debtor-${item.name}`}>
+              <View style={st.cardHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.cardName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={st.cardCity}>{item.city || 'N/A'}</Text>
+                </View>
+                <View style={[st.debtBadge, { backgroundColor: item.debtTotal > 0 ? '#3d1a1a' : '#1a3d1a' }]}>
+                  <Text style={[st.debtBadgeText, { color: item.debtTotal > 0 ? '#EA4335' : '#34A853' }]}>
+                    {item.debtTotal > 0 ? `${item.debtTotal.toLocaleString('en-IN')}` : 'Settled'}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={<View style={st.center}><Text style={st.errSub}>No debtors found.</Text></View>}
         />
       )}
 
+      {/* BILLS TAB */}
       {activeTab === 'bills' && (
         <FlatList
-          data={billsData}
-          renderItem={renderBillRow}
-          keyExtractor={(_, idx) => `bill-${idx}`}
+          data={filteredBills}
+          keyExtractor={(_, i) => `b-${i}`}
           contentContainerStyle={st.listContent}
-          ListHeaderComponent={
-            billsData.length > 0 ? (
-              <View style={[st.tableRow, st.tableHeader]}>
-                {billsData[0].slice(0, 6).map((h, i) => (
-                  <Text key={i} style={[st.tableHeaderCell, i === 0 && st.tableCellFirst]}>{h || `Col ${i + 1}`}</Text>
-                ))}
+          renderItem={({ item }) => {
+            const days = parseFloat(item.daysLeft);
+            const isOverdue = !isNaN(days) && days < 0;
+            return (
+              <View style={st.billCard}>
+                <View style={st.billTop}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.billDealer} numberOfLines={1}>{item.dealerName || '-'}</Text>
+                    <Text style={st.billCity}>{item.city || '-'}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[st.billAmount, isOverdue && { color: '#EA4335' }]}>
+                      {item.dueAmount > 0 ? item.dueAmount.toLocaleString('en-IN') : '-'}
+                    </Text>
+                    <View style={[st.daysBadge, { backgroundColor: isOverdue ? '#3d1a1a' : '#1a3d2a' }]}>
+                      <Text style={[st.daysText, { color: isOverdue ? '#EA4335' : '#34A853' }]}>
+                        {isNaN(days) ? item.daysLeft || '-' : days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={st.billMeta}>
+                  <View style={st.billMetaItem}>
+                    <Text style={st.billMetaLabel}>Month</Text>
+                    <Text style={st.billMetaVal}>{item.month || '-'}</Text>
+                  </View>
+                  <View style={st.billMetaItem}>
+                    <Text style={st.billMetaLabel}>Invoice</Text>
+                    <Text style={st.billMetaVal}>{item.invoiceDate || '-'}</Text>
+                  </View>
+                  <View style={st.billMetaItem}>
+                    <Text style={st.billMetaLabel}>Due Date</Text>
+                    <Text style={st.billMetaVal}>{item.dueDate || '-'}</Text>
+                  </View>
+                </View>
+                <View style={st.billBottom}>
+                  <Text style={st.billId}>Bill: {item.billId || '-'}</Text>
+                  <Text style={st.billWeight}>{item.weight ? `${item.weight} kg` : ''}</Text>
+                </View>
               </View>
-            ) : null
-          }
-          stickyHeaderIndices={[0]}
-          ListEmptyComponent={
-            <View style={st.center}>
-              <Text style={st.errSub}>No bills data found. Make sure the file has an "OriginalBills" or "Invoice" sheet.</Text>
-            </View>
-          }
+            );
+          }}
+          ListEmptyComponent={<View style={st.center}><Text style={st.errSub}>No bills found.</Text></View>}
         />
       )}
 
+      {/* PAYMENTS TAB */}
       {activeTab === 'payments' && (
         <FlatList
           data={localPayments}
-          renderItem={renderPaymentItem}
-          keyExtractor={(item, idx) => `pay-${idx}-${item.date}`}
+          keyExtractor={(_, i) => `p-${i}`}
           contentContainerStyle={st.listContent}
-          ListHeaderComponent={
-            paymentsData.length > 1 ? (
-              <View style={st.excelPayHeader}>
-                <Ionicons name="document-text" size={14} color="#4285F4" />
-                <Text style={st.excelPayLabel}>Excel Payments: {paymentsData.length - 1} rows</Text>
+          renderItem={({ item }) => (
+            <View style={st.payCard}>
+              <View style={st.payTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.payName}>{item.debtor_name}</Text>
+                  <Text style={st.payDate}>{item.date}</Text>
+                </View>
+                <Text style={st.payAmt}>{parseFloat(String(item.amount)).toLocaleString('en-IN')}</Text>
               </View>
-            ) : null
-          }
+              {item.reference && <Text style={st.payRef}>Ref: {item.reference}</Text>}
+              {item.notes && <Text style={st.payNotes}>{item.notes}</Text>}
+              <TouchableOpacity style={st.deleteBtn} onPress={() => handleDeletePayment(item)} data-testid={`delete-pay-${item.date}`}>
+                <Ionicons name="trash-outline" size={14} color="#EA4335" />
+                <Text style={st.deleteBtnText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           ListEmptyComponent={
             <View style={st.center}>
-              <Text style={st.errSub}>No payments recorded yet. Tap "Record Payment" to add one.</Text>
+              <Ionicons name="cash-outline" size={40} color="#5f6368" />
+              <Text style={st.errSub}>No payments recorded yet.</Text>
+              <TouchableOpacity style={st.recordBtn} onPress={() => setShowPaymentModal(true)}>
+                <Ionicons name="add" size={16} color="#fff" /><Text style={st.recordBtnText}>Record Payment</Text>
+              </TouchableOpacity>
             </View>
           }
         />
@@ -386,40 +416,42 @@ export default function DebtorsScreen() {
       <Modal visible={!!selectedDebtor} transparent animationType="slide" onRequestClose={() => setSelectedDebtor(null)}>
         <View style={st.modalBg}>
           <View style={st.detailModal}>
-            <View style={st.detailHeader}>
-              <Text style={st.detailTitle}>{selectedDebtor}</Text>
-              <TouchableOpacity onPress={() => setSelectedDebtor(null)}>
-                <Ionicons name="close" size={24} color="#9aa0a6" />
-              </TouchableOpacity>
+            <View style={st.modalHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={st.modalTitle}>{selectedDebtor?.name}</Text>
+                <Text style={st.modalCity}>{selectedDebtor?.city || 'N/A'}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedDebtor(null)}><Ionicons name="close" size={24} color="#9aa0a6" /></TouchableOpacity>
             </View>
-            {/* Show local payments for this debtor */}
-            <Text style={st.detailSectionTitle}>Recorded Payments</Text>
-            <ScrollView style={st.detailScroll}>
-              {localPayments.filter(p => p.debtor_name === selectedDebtor).length === 0 ? (
-                <Text style={st.errSub}>No payments recorded for this debtor.</Text>
+            <View style={st.modalDebt}>
+              <Text style={st.modalDebtLabel}>Total Debt</Text>
+              <Text style={[st.modalDebtVal, { color: (selectedDebtor?.debtTotal || 0) > 0 ? '#EA4335' : '#34A853' }]}>
+                {(selectedDebtor?.debtTotal || 0) > 0 ? (selectedDebtor?.debtTotal || 0).toLocaleString('en-IN') : 'Settled'}
+              </Text>
+            </View>
+            {/* Payments for this debtor */}
+            <Text style={st.modalSectionTitle}>Payments</Text>
+            <ScrollView style={{ maxHeight: 200 }}>
+              {localPayments.filter(p => p.debtor_name === selectedDebtor?.name).length === 0 ? (
+                <Text style={st.errSub}>No payments for this debtor.</Text>
               ) : (
-                localPayments.filter(p => p.debtor_name === selectedDebtor).map((p, i) => (
-                  <View key={i} style={st.paymentCard}>
-                    <View style={st.paymentHeader}>
-                      <Text style={st.paymentDate}>{p.date}</Text>
-                      <Text style={st.paymentAmt}>{parseFloat(String(p.amount)).toLocaleString('en-IN')}</Text>
+                localPayments.filter(p => p.debtor_name === selectedDebtor?.name).map((p, i) => (
+                  <View key={i} style={st.payCard}>
+                    <View style={st.payTop}>
+                      <Text style={st.payDate}>{p.date}</Text>
+                      <Text style={st.payAmt}>{parseFloat(String(p.amount)).toLocaleString('en-IN')}</Text>
                     </View>
-                    {p.reference && <Text style={st.paymentRef}>Ref: {p.reference}</Text>}
-                    {p.notes && <Text style={st.paymentNotes}>{p.notes}</Text>}
+                    {p.reference && <Text style={st.payRef}>Ref: {p.reference}</Text>}
                   </View>
                 ))
               )}
             </ScrollView>
-            <TouchableOpacity
-              style={st.recordBtn}
-              onPress={() => {
-                setSelectedDebtor(null);
-                setPaymentForm({ ...paymentForm, debtor_name: selectedDebtor || '' });
-                setShowPaymentModal(true);
-              }}
-            >
-              <Ionicons name="add" size={16} color="#fff" />
-              <Text style={st.recordBtnText}>Record Payment for {selectedDebtor}</Text>
+            <TouchableOpacity style={[st.recordBtn, { marginTop: 16, justifyContent: 'center' }]} onPress={() => {
+              setSelectedDebtor(null);
+              setPaymentForm({ ...paymentForm, debtor_name: selectedDebtor?.name || '' });
+              setShowPaymentModal(true);
+            }}>
+              <Ionicons name="add" size={16} color="#fff" /><Text style={st.recordBtnText}>Record Payment</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -429,61 +461,23 @@ export default function DebtorsScreen() {
       <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
         <View style={st.modalBg}>
           <View style={st.formModal}>
-            <View style={st.detailHeader}>
-              <Text style={st.detailTitle}>Record Payment</Text>
-              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                <Ionicons name="close" size={24} color="#9aa0a6" />
-              </TouchableOpacity>
+            <View style={st.modalHead}>
+              <Text style={st.modalTitle}>Record Payment</Text>
+              <TouchableOpacity onPress={() => setShowPaymentModal(false)}><Ionicons name="close" size={24} color="#9aa0a6" /></TouchableOpacity>
             </View>
             <ScrollView>
               <Text style={st.fieldLabel}>Debtor Name *</Text>
-              <TextInput
-                style={st.formInput}
-                value={paymentForm.debtor_name}
-                onChangeText={v => setPaymentForm({ ...paymentForm, debtor_name: v })}
-                placeholder="Enter debtor name"
-                placeholderTextColor="#5f6368"
-                data-testid="payment-debtor-name"
-              />
+              <TextInput style={st.formInput} value={paymentForm.debtor_name} onChangeText={v => setPaymentForm({ ...paymentForm, debtor_name: v })} placeholder="Enter debtor name" placeholderTextColor="#5f6368" data-testid="payment-debtor-name" />
               <Text style={st.fieldLabel}>Amount *</Text>
-              <TextInput
-                style={st.formInput}
-                value={paymentForm.amount}
-                onChangeText={v => setPaymentForm({ ...paymentForm, amount: v })}
-                placeholder="Enter amount"
-                placeholderTextColor="#5f6368"
-                keyboardType="numeric"
-                data-testid="payment-amount"
-              />
+              <TextInput style={st.formInput} value={paymentForm.amount} onChangeText={v => setPaymentForm({ ...paymentForm, amount: v })} placeholder="Enter amount" placeholderTextColor="#5f6368" keyboardType="numeric" data-testid="payment-amount" />
               <Text style={st.fieldLabel}>Date</Text>
-              <TextInput
-                style={st.formInput}
-                value={paymentForm.date}
-                onChangeText={v => setPaymentForm({ ...paymentForm, date: v })}
-                placeholder="YYYY-MM-DD (default: today)"
-                placeholderTextColor="#5f6368"
-                data-testid="payment-date"
-              />
+              <TextInput style={st.formInput} value={paymentForm.date} onChangeText={v => setPaymentForm({ ...paymentForm, date: v })} placeholder="YYYY-MM-DD (default: today)" placeholderTextColor="#5f6368" />
               <Text style={st.fieldLabel}>Reference</Text>
-              <TextInput
-                style={st.formInput}
-                value={paymentForm.reference}
-                onChangeText={v => setPaymentForm({ ...paymentForm, reference: v })}
-                placeholder="Cheque no, UPI ref, etc."
-                placeholderTextColor="#5f6368"
-              />
+              <TextInput style={st.formInput} value={paymentForm.reference} onChangeText={v => setPaymentForm({ ...paymentForm, reference: v })} placeholder="Cheque no, UPI ref, etc." placeholderTextColor="#5f6368" />
               <Text style={st.fieldLabel}>Notes</Text>
-              <TextInput
-                style={[st.formInput, { height: 80, textAlignVertical: 'top' }]}
-                value={paymentForm.notes}
-                onChangeText={v => setPaymentForm({ ...paymentForm, notes: v })}
-                placeholder="Optional notes"
-                placeholderTextColor="#5f6368"
-                multiline
-              />
+              <TextInput style={[st.formInput, { height: 70, textAlignVertical: 'top' }]} value={paymentForm.notes} onChangeText={v => setPaymentForm({ ...paymentForm, notes: v })} placeholder="Optional notes" placeholderTextColor="#5f6368" multiline />
               <TouchableOpacity style={st.submitBtn} onPress={handleRecordPayment} data-testid="submit-payment-btn">
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={st.submitBtnText}>Save Payment</Text>
+                <Ionicons name="checkmark-circle" size={20} color="#fff" /><Text style={st.submitBtnText}>Save Payment</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -499,104 +493,76 @@ const st = StyleSheet.create({
   loadText: { color: '#9aa0a6', marginTop: 12, fontSize: 14 },
   errTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginTop: 16 },
   errSub: { color: '#9aa0a6', fontSize: 14, textAlign: 'center', marginTop: 8 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14,
-    backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460',
-  },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4285F4', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginTop: 16 },
+  retryText: { color: '#fff', fontWeight: '600' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460' },
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  recordBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#4285F4', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
-  },
+  recordBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4285F4', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   recordBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  summary: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#16213e', marginHorizontal: 16, marginTop: 12,
-    borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#0f3460',
-  },
+  summary: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#16213e', marginHorizontal: 16, marginTop: 12, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#0f3460' },
   summaryItem: { flex: 1, alignItems: 'center' },
   summaryLabel: { fontSize: 11, color: '#9aa0a6', fontWeight: '500' },
   summaryVal: { fontSize: 18, fontWeight: '700', color: '#fff', marginTop: 4 },
   summaryDivider: { width: 1, height: 32, backgroundColor: '#0f3460' },
-  tabs: {
-    flexDirection: 'row', marginHorizontal: 16, marginTop: 12, gap: 8,
-  },
-  tab: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: '#0f3460', borderWidth: 1, borderColor: '#1e3a5f',
-  },
+  tabs: { flexDirection: 'row', marginHorizontal: 16, marginTop: 12, gap: 8 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: '#0f3460', borderWidth: 1, borderColor: '#1e3a5f' },
   tabActive: { backgroundColor: '#1a2f5e', borderColor: '#4285F4' },
   tabText: { fontSize: 13, color: '#9aa0a6', fontWeight: '500' },
   tabTextActive: { color: '#4285F4', fontWeight: '600' },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#0f3460', marginHorizontal: 16, marginTop: 10,
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
-    borderWidth: 1, borderColor: '#1e3a5f',
-  },
+  searchRow: { marginHorizontal: 16, marginTop: 10 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#0f3460', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#1e3a5f' },
   searchInput: { flex: 1, color: '#fff', fontSize: 14 },
+  filterRow: { flexDirection: 'row', marginHorizontal: 16, marginTop: 8, gap: 8 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: '#0f3460', borderWidth: 1, borderColor: '#1e3a5f' },
+  filterChipActive: { backgroundColor: '#1a2f5e', borderColor: '#4285F4' },
+  filterChipText: { fontSize: 12, color: '#9aa0a6' },
+  filterChipTextActive: { color: '#4285F4', fontWeight: '600' },
   listContent: { padding: 16, paddingBottom: 80 },
-  card: {
-    backgroundColor: '#16213e', borderRadius: 12, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: '#0f3460',
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardName: { fontSize: 15, fontWeight: '700', color: '#fff', flex: 1 },
-  outBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  outBadgeText: { fontSize: 12, fontWeight: '600' },
-  cardRow: { flexDirection: 'row', marginTop: 10, gap: 8 },
-  cardStat: { flex: 1, backgroundColor: '#0f3460', borderRadius: 8, padding: 8, alignItems: 'center' },
-  cardStatLabel: { fontSize: 10, color: '#9aa0a6' },
-  cardStatVal: { fontSize: 14, fontWeight: '700', color: '#e0e0e0', marginTop: 2 },
-  tableRow: {
-    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#0f3460',
-    paddingVertical: 10, paddingHorizontal: 8,
-  },
-  tableHeader: { backgroundColor: '#16213e' },
-  tableHeaderCell: { flex: 1, fontSize: 11, fontWeight: '700', color: '#4285F4' },
-  tableCell: { flex: 1, fontSize: 12, color: '#e0e0e0' },
-  tableCellFirst: { flex: 1.5 },
-  paymentCard: {
-    backgroundColor: '#16213e', borderRadius: 10, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: '#0f3460',
-  },
-  paymentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  paymentName: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  paymentAmt: { fontSize: 16, fontWeight: '700', color: '#34A853' },
-  paymentMeta: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  paymentDate: { fontSize: 12, color: '#9aa0a6' },
-  paymentRef: { fontSize: 12, color: '#FBBC05' },
-  paymentNotes: { fontSize: 12, color: '#9aa0a6', marginTop: 4, fontStyle: 'italic' },
-  excelPayHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#0f3460', borderRadius: 8, padding: 10, marginBottom: 10,
-  },
-  excelPayLabel: { fontSize: 12, color: '#4285F4', fontWeight: '500' },
+  // Debtor card
+  card: { backgroundColor: '#16213e', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#0f3460' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardName: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  cardCity: { fontSize: 12, color: '#9aa0a6', marginTop: 2 },
+  debtBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  debtBadgeText: { fontSize: 14, fontWeight: '700' },
+  // Bill card
+  billCard: { backgroundColor: '#16213e', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#0f3460' },
+  billTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  billDealer: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  billCity: { fontSize: 12, color: '#9aa0a6', marginTop: 2 },
+  billAmount: { fontSize: 17, fontWeight: '700', color: '#FBBC05' },
+  daysBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 4 },
+  daysText: { fontSize: 11, fontWeight: '600' },
+  billMeta: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  billMetaItem: { flex: 1, backgroundColor: '#0f3460', borderRadius: 8, padding: 8, alignItems: 'center' },
+  billMetaLabel: { fontSize: 10, color: '#9aa0a6' },
+  billMetaVal: { fontSize: 12, fontWeight: '600', color: '#e0e0e0', marginTop: 2 },
+  billBottom: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  billId: { fontSize: 11, color: '#4285F4', fontWeight: '500' },
+  billWeight: { fontSize: 11, color: '#9aa0a6' },
+  // Payment card
+  payCard: { backgroundColor: '#16213e', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#0f3460' },
+  payTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  payName: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  payDate: { fontSize: 12, color: '#9aa0a6' },
+  payAmt: { fontSize: 16, fontWeight: '700', color: '#34A853' },
+  payRef: { fontSize: 12, color: '#FBBC05', marginTop: 4 },
+  payNotes: { fontSize: 12, color: '#9aa0a6', marginTop: 2, fontStyle: 'italic' },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: '#3d1a1a' },
+  deleteBtnText: { fontSize: 11, color: '#EA4335', fontWeight: '500' },
+  // Modals
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  detailModal: {
-    backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, maxHeight: '70%',
-  },
-  formModal: {
-    backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, maxHeight: '80%',
-  },
-  detailHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16,
-  },
-  detailTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
-  detailSectionTitle: { fontSize: 14, fontWeight: '600', color: '#4285F4', marginBottom: 10 },
-  detailScroll: { maxHeight: 200, marginBottom: 16 },
+  detailModal: { backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },
+  formModal: { backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' },
+  modalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  modalCity: { fontSize: 13, color: '#9aa0a6', marginTop: 2 },
+  modalDebt: { backgroundColor: '#0f3460', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 16 },
+  modalDebtLabel: { fontSize: 12, color: '#9aa0a6' },
+  modalDebtVal: { fontSize: 28, fontWeight: '700', marginTop: 4 },
+  modalSectionTitle: { fontSize: 14, fontWeight: '600', color: '#4285F4', marginBottom: 10 },
   fieldLabel: { fontSize: 12, color: '#9aa0a6', fontWeight: '500', marginTop: 12, marginBottom: 4 },
-  formInput: {
-    backgroundColor: '#0f3460', borderRadius: 10, padding: 12,
-    color: '#fff', fontSize: 14, borderWidth: 1, borderColor: '#1e3a5f',
-  },
-  submitBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#34A853', borderRadius: 10, paddingVertical: 14, marginTop: 20,
-  },
+  formInput: { backgroundColor: '#0f3460', borderRadius: 10, padding: 12, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: '#1e3a5f' },
+  submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#34A853', borderRadius: 10, paddingVertical: 14, marginTop: 20 },
   submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

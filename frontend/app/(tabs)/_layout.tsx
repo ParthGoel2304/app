@@ -42,15 +42,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="sales"
-        options={{
-          title: 'Sales',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={22} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="pricer"
         options={{
           title: 'Pricer',
@@ -69,6 +60,7 @@ export default function TabLayout() {
         }}
       />
       {/* Hidden tabs — accessible via Home quick actions */}
+      <Tabs.Screen name="sales" options={{ href: null }} />
       <Tabs.Screen name="purchase" options={{ href: null }} />
       <Tabs.Screen name="warehouse" options={{ href: null }} />
       <Tabs.Screen name="filter" options={{ href: null }} />

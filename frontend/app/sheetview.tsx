@@ -156,7 +156,7 @@ export default function SheetViewScreen() {
 
   // Get visible columns (excluding hidden ones)
   const visibleCols = useMemo(() => {
-    const maxCol = Math.min(15, allData[0]?.length || 15);
+    const maxCol = allData[0]?.length || 16;
     return Array.from({ length: maxCol }, (_, i) => i).filter(i => !hiddenCols.has(i));
   }, [hiddenCols, allData]);
 

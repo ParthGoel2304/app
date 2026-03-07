@@ -41,6 +41,7 @@ export default function HomeScreen() {
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [lowStockExpanded, setLowStockExpanded] = useState(false);
   const [loadingLowStock, setLoadingLowStock] = useState(false);
+  const [lowStockCategory, setLowStockCategory] = useState<'L' | 'HR' | 'A' | null>(null);
   
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -99,48 +100,45 @@ export default function HomeScreen() {
     } catch {}
   };
 
-  const loadLowStockData = async () => {
+  const loadLowStockData = async (category?: 'L' | 'HR' | 'A') => {
     try {
       setLoadingLowStock(true);
       const sid = await AsyncStorage.getItem('session_id');
       if (!sid) return;
 
-      // Find JGT file from Drive (file with JGT in name)
+      // Find "F.Y. 2025-26 Final" file
       const filesRes = await axios.get(`${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=true`);
-      const jgtFile = filesRes.data.files?.find((f: any) => f.file_name.toLowerCase().includes('jgt'));
-      if (!jgtFile) return;
-
-      // First get the list of sheets in the file
-      const sheetsRes = await axios.get(
-        `${BACKEND_URL}/api/drive/file/${jgtFile.file_id}/sheets?session_id=${sid}`
+      const files = filesRes.data.files || [];
+      const fyFile = files.find((f: any) =>
+        f.file_name.toLowerCase().includes('f.y.') || f.file_name.toLowerCase().includes('fy') || f.file_name.toLowerCase().includes('2025-26 final') || f.file_name.toLowerCase().includes('final')
       );
-      const sheets = sheetsRes.data.sheet_names || [];
-      // Use STOCK sheet or the first available sheet
-      const stockSheet = sheets.find((s: string) => s.toLowerCase().includes('stock')) || sheets[0];
-      if (!stockSheet) return;
+      if (!fyFile) return;
 
-      // Fetch the sheet data - need E column (name) and P column (order quantity)
+      // Determine which sheet to load based on category
+      const cat = category || lowStockCategory || 'L';
+      const sheetMap: Record<string, string> = {
+        'L': 'L In Demand',
+        'HR': 'HR In Demand',
+        'A': 'A In Demand',
+      };
+      const sheetName = sheetMap[cat];
+
       const dataRes = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${jgtFile.file_id}&sheet_name=${encodeURIComponent(stockSheet)}&cell_range=A1:P200&_t=${Date.now()}`
+        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${fyFile.file_id}&sheet_name=${encodeURIComponent(sheetName)}&cell_range=A1:Z200&_t=${Date.now()}`
       );
       const rows = dataRes.data.data || [];
-      
-      // Low stock items: where P column (index 15) order quantity > 1000
-      // Show E column (index 4) as name, P column (index 15) as stock (kg)
+
+      // A column = item name (from row 3+, index 2), B column = stock qty
       const items: LowStockItem[] = [];
-      for (let i = 1; i < rows.length; i++) {
+      for (let i = 2; i < rows.length; i++) {
         const row = rows[i];
-        if (!row[4]) continue; // Skip rows without stock name (E column)
-        const orderQty = parseFloat(row[15]) || 0; // Column P (index 15)
-        if (orderQty > 1000) {
-          items.push({
-            item: row[4] || `Row ${i + 1}`, // E column - Stock item name
-            current: orderQty, // P column value as stock (kg)
-            minStock: 1000,
-          });
-        }
+        const name = String(row[0] || '').trim();
+        if (!name) continue;
+        const stock = parseFloat(row[1]) || 0;
+        items.push({ item: name, current: stock, minStock: 0 });
       }
-      setLowStockItems(items.slice(0, 50)); // Limit to 50 items
+      setLowStockItems(items);
+      setLowStockCategory(cat);
     } catch (err) {
       console.error('Failed to load low stock data:', err);
     } finally {
@@ -237,9 +235,8 @@ export default function HomeScreen() {
   // Quick Actions
   const quickActions = [
     { label: 'Inventory', icon: 'cube', color: '#4285F4', bg: '#E8F0FE', route: '/(tabs)/inventory' },
-    { label: 'Sales', icon: 'receipt', color: '#34A853', bg: '#E6F4EA', route: '/(tabs)/sales' },
-    { label: 'Purchase', icon: 'cart', color: '#E65100', bg: '#FFF3E0', route: '/(tabs)/purchase' },
     { label: 'Debtors', icon: 'people', color: '#EA4335', bg: '#FCE8E6', route: '/(tabs)/debtors' },
+    { label: 'Purchase', icon: 'cart', color: '#E65100', bg: '#FFF3E0', route: '/(tabs)/purchase' },
     { label: 'Pricer', icon: 'pricetag', color: '#FBBC05', bg: '#FEF7E0', route: '/(tabs)/pricer' },
     { label: 'Calculator', icon: 'calculator', color: '#9C27B0', bg: '#F0E6FE', route: '/(tabs)/calculator' },
     { label: 'Layout', icon: 'grid', color: '#1565C0', bg: '#E3F2FD', route: '/(tabs)/warehouse' },
@@ -327,29 +324,48 @@ export default function HomeScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Low Stock Widget - Bottom Left */}
-      {lowStockItems.length > 0 && (
-        <View style={[s.lowStockWidget, lowStockExpanded && s.lowStockWidgetExpanded]}>
-          <TouchableOpacity style={s.lowStockHeader} onPress={() => setLowStockExpanded(!lowStockExpanded)}>
-            <View style={s.lowStockBadge}>
-              <Ionicons name="warning" size={14} color="#fff" />
-              <Text style={s.lowStockCount}>{lowStockItems.length}</Text>
-            </View>
-            {lowStockExpanded && <Text style={s.lowStockTitle}>Low Stock</Text>}
-            <Ionicons name={lowStockExpanded ? 'chevron-down' : 'chevron-up'} size={14} color="#FA7B17" />
-          </TouchableOpacity>
-          {lowStockExpanded && (
-            <ScrollView style={s.lowStockList} nestedScrollEnabled showsVerticalScrollIndicator>
-              {lowStockItems.map((item, i) => (
-                <View key={i} style={s.lowStockItem}>
-                  <Text style={s.lowStockItemName} numberOfLines={1}>{item.item}</Text>
-                  <Text style={s.lowStockItemStock}>{item.current} kg</Text>
-                </View>
+      {/* Low Stock Widget - Bottom */}
+      <View style={[s.lowStockWidget, lowStockExpanded && s.lowStockWidgetExpanded]}>
+        <TouchableOpacity style={s.lowStockHeader} onPress={() => { setLowStockExpanded(!lowStockExpanded); if (!lowStockExpanded && !lowStockCategory) loadLowStockData('L'); }}>
+          <View style={s.lowStockBadge}>
+            <Ionicons name="trending-down" size={14} color="#fff" />
+            <Text style={s.lowStockCount}>Stock</Text>
+          </View>
+          {lowStockExpanded && <Text style={s.lowStockTitle}>In-Demand Items</Text>}
+          <Ionicons name={lowStockExpanded ? 'chevron-down' : 'chevron-up'} size={14} color="#FA7B17" />
+        </TouchableOpacity>
+        {lowStockExpanded && (
+          <>
+            {/* Category buttons */}
+            <View style={s.lowStockCatRow}>
+              {(['L', 'HR', 'A'] as const).map(cat => (
+                <TouchableOpacity key={cat} style={[s.lowStockCatBtn, lowStockCategory === cat && s.lowStockCatBtnActive]}
+                  onPress={() => loadLowStockData(cat)} data-testid={`lowstock-${cat}`}>
+                  <Text style={[s.lowStockCatText, lowStockCategory === cat && s.lowStockCatTextActive]}>{cat}</Text>
+                </TouchableOpacity>
               ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
+            </View>
+            {loadingLowStock ? (
+              <ActivityIndicator size="small" color="#4285F4" style={{ marginVertical: 12 }} />
+            ) : (
+              <ScrollView style={s.lowStockList} nestedScrollEnabled showsVerticalScrollIndicator>
+                {lowStockItems.length === 0 ? (
+                  <Text style={{ color: '#9aa0a6', fontSize: 12, textAlign: 'center', padding: 12 }}>
+                    {lowStockCategory ? 'No items found. Select a category.' : 'Tap L, HR, or A to load items.'}
+                  </Text>
+                ) : (
+                  lowStockItems.map((item, i) => (
+                    <View key={i} style={s.lowStockItem}>
+                      <Text style={s.lowStockItemName} numberOfLines={1}>{item.item}</Text>
+                      <Text style={s.lowStockItemStock}>{item.current}</Text>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </>
+        )}
+      </View>
 
       {/* Share Menu Modal */}
       <Modal visible={showShareMenu} transparent animationType="fade" onRequestClose={() => setShowShareMenu(false)}>
@@ -473,7 +489,12 @@ const s = StyleSheet.create({
   },
   lowStockCount: { fontSize: 11, fontWeight: '700', color: '#fff' },
   lowStockTitle: { flex: 1, fontSize: 12, fontWeight: '600', color: '#FA7B17' },
-  lowStockList: { maxHeight: 180, paddingHorizontal: 8, paddingBottom: 8 },
+  lowStockList: { maxHeight: 160, paddingHorizontal: 8, paddingBottom: 8 },
+  lowStockCatRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 8, paddingBottom: 6 },
+  lowStockCatBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, backgroundColor: '#3d2f10', alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
+  lowStockCatBtnActive: { backgroundColor: '#FA7B17', borderColor: '#FA7B17' },
+  lowStockCatText: { fontSize: 12, fontWeight: '600', color: '#FA7B17' },
+  lowStockCatTextActive: { color: '#fff' },
   lowStockItem: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#3d2f20',
