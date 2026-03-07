@@ -84,9 +84,22 @@ export default function PricerTab() {
         })
       });
 
-      // Fetch JGT sheet data - we need columns A (Item), I (Size Difference), O (Stock)
+      // First get the list of sheets in the file
+      const sheetsRes = await axios.get(
+        `${BACKEND_URL}/api/drive/file/${jgtFile.file_id}/sheets?session_id=${sid}`
+      );
+      const sheets = sheetsRes.data.sheets || [];
+      // Use STOCK sheet or the first available sheet
+      const stockSheet = sheets.find((s: string) => s.toLowerCase().includes('stock')) || sheets[0];
+      if (!stockSheet) {
+        setError('file_not_found');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch the sheet data - we need columns A (Item), I (Size Difference), O (Stock)
       const dataRes = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${jgtFile.file_id}&sheet_name=JGT&cell_range=A1:O200&_t=${Date.now()}`
+        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${jgtFile.file_id}&sheet_name=${encodeURIComponent(stockSheet)}&cell_range=A1:O200&_t=${Date.now()}`
       );
       
       const rows: any[] = dataRes.data.data || [];
