@@ -10,7 +10,7 @@ import wave
 import struct
 
 # Use the public preview URL for testing
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://excel-link-app.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://excel-reader-erp.preview.emergentagent.com')
 
 
 @pytest.fixture

@@ -1,113 +1,96 @@
-<analysis>Analyse and provide a useful summary for the next agent.
+<analysis>
+Analyse and provide a useful summary for the next agent.
 
 **original_problem_statement:**
-The user wants to build a mobile-first inventory lookup and quotation app called Excel Reader that connects to their Google account to read data from Excel files in Google Drive.
+The user wants to build a mobile-first inventory lookup and quotation app, Excel Reader, that connects to their Google account to read and interact with data from Excel files in a specific Google Drive folder.
 
-**Latest High-Level Requirements (Consolidated from user messages):**
+The application's scope has expanded significantly to become a lightweight ERP system, including modules for inventory management, sales tracking, a debtors ledger with payment tracking, a purchase reordering system, a weight calculator, and a dynamic pricing tool. The system's source of truth remains a set of Excel files (, , ) in the user's Google Drive.
 
-1.  **Core Functionality:**
-    *   **Always Load Latest File:** The app must automatically detect and load the newest version of the inventory Excel file from Google Drive based on its .
-    *   **Auto-Refresh:** Periodically (e.g., every 60 seconds), check for file updates on Drive and refresh the app data automatically.
-    *   **File Version Display:** The Home screen must show the active file's name and its Last Updated timestamp from Google Drive metadata.
-    *   **Minimum Stock Alert:** Implement a small, minimizable alert panel in the bottom-left corner showing all items where Current Stock is less than Minimum Stock.
-    *   **Automatic Reorder Suggestion:** Calculate a Suggested Order Quantity for each item (). This list should be the source for all export functions.
-    *   **Data Source Logic:** Minimum Stock for an item is defined as the Ideal Quantity from the corresponding In Demand sheets (, , ).
-
-2.  **UI & Navigation:**
-    *   **New Tab Structure:** The main navigation should be , , ,  (Sheet View), and . A new  tab is also required.
-    *   **Clean Home Screen:** The home screen should display the file info, navigation to Inventory/Sales, and the low-stock alert panel.
-    *   **Share/Export Button:** A top-right share icon should open a dropdown with Export as PDF, Share via WhatsApp, and Export as Editable TXT options, all based on the auto-reorder suggestion list. The PDF export must be made functional.
-    *   **Purchase Tab:** This tab should use files already saved in the app's library (specifically F.Y. 2025-26 Final) without showing a new file picker. It should read from the HR In Demand, A In Demand, and L In Demand sheets.
-    *   **Sales Tab:** A new Annual Sales tab must fetch and display data from the Sales FY 25-26 file (worksheet Sales) from the same Google Drive folder.
-    *   **Calculator Tab:** A Weight Calculator with a multi-step, unit-aware input flow (mm, inch, m, ft, NB, OD) and a central conversion engine.
-    *   **Layout Tab:** Enhance with a real-time rack location search and a compact view showing abbreviated item names (e.g., ).
+Key requirements from recent user prompts include:
+- **Correct Data Fetching:** The app must consistently use the correct Excel file and sheet names for different modules (e.g., JGT or STOCK for inventory, Sales for sales data).
+- **UI/UX Overhaul:** The Home screen must be minimal, with an expandable low-stock widget. Navigation must be fast and intuitive. All buttons and interactions must be functional and responsive (<12 seconds load time).
+- **Pricer Module:** A new tab to calculate prices based on a Basic Rate and a Size Difference from the inventory sheet.
+- **Weight Calculator:** Must use specific, corrected formulas provided by the user, handling mixed units (inches, mm, feet).
+- **Printing:** The Sheet View needs a custom printing layout with user-editable page ranges.
+- **Debtors System:** A full three-sheet accounting system (, , ) needs to be implemented to track invoices and payments accurately.
+- **APK Build:** The user wants a standalone Android APK.
 
 **User's preferred language**: The user communicates in English. The agent MUST respond in English.
 
 **what currently exists?**
-The application is an Expo (React Native) frontend with a FastAPI backend. The agent has implemented a significant number of features in the last session, but a new, larger set of requirements was just started.
+The application is a full-stack app with an Expo (React Native) frontend and a FastAPI backend.
+- **Backend:** Endpoints are in place for Google OAuth (with a manual code entry fallback), fetching file metadata, and listing files. The API was recently fixed to correctly query for , , and  file types. An unused  endpoint exists from a failed attempt to integrate .
+- **Frontend:** The UI has undergone many changes.
+    - A  screen exists but needs a complete redesign to match user requirements (remove Annual Sales, add a proper low-stock widget).
+    - , , and a new  screen exist, but their functionality is either incomplete or buggy.
+    -  has been updated with corrected weight formulas.
+    - The main tab navigator  was fixed to resolve a routing conflict by renaming  to .
+    - The Google OAuth flow was reverted to use  which opens the system browser, fixing the  error on mobile.
+- **Configuration:** The  files have been repeatedly fixed to use the correct, permanent preview URL () and remove dead  links.
 
-*   **Backend:** Endpoints exist for Google OAuth (including a manual code exchange fallback), file metadata fetching (), layout versioning, and voice transcription.
-*   **Frontend:** The UI has been restructured.
-    *   New, placeholder screens  and  were just created.
-    *   The  and  screens exist with initial UI.
-    *   The  screen includes UI elements for search and compact mode.
-    *   The main tab navigator  has been updated to reflect the new tab structure.
-    *   A central unit conversion utility exists at .
-
-The app is in a transitional state, with many new files and code stubs that are not fully integrated or functional.
+The application is in a broken but partially functional state. Core navigation and OAuth are working, but many feature implementations are incomplete, buggy, or not aligned with the latest user specifications.
 
 **Last working item**:
-- Last item agent was working: Implementing a large batch of 9 new features requested by the user. The agent had just created the new  and  files and was about to verify the frontend build before proceeding with the implementation of the complex logic for all 9 features.
+- Last item agent was working: The agent was addressing a user report that multiple features were not updated as requested. Specifically, the agent was starting to fix the  screen (to remove the Annual Sales section and add a low-stock widget) and was correcting the sheet name used for data fetching in the Pricer and Low-stock features from the incorrect JGT to the correct STOCK.
 - Status: IN PROGRESS
 - Agent Testing Done: N
-- Which testing method agent to use? both. Once all features are implemented, a full run with the testing agent is required to check backend endpoints and frontend component rendering. Manual testing with screenshots will be needed to verify the specific UX flows (e.g., PDF export, low-stock alert visibility).
-- User Testing Done: N
+- Which testing method agent to use? both. First, use  to test backend endpoints to ensure they fetch data from the correct STOCK sheet. Then, use the screenshot tool to verify the new  layout. Finally, the user has explicitly requested a full application audit, so the agent must act as a proxy user to test every button and interaction, fixing any bugs or performance issues found.
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Google OAuth Flow Production Verification (P1)**
-    - **Attempted fixes:** The agent implemented a robust workaround for the  404 error by creating a manual authorization code flow. The user can now paste the code from the URL if the automatic redirect fails.
-    - **Next debug checklist:** The user needs to test this new login flow on a deployed production environment. The original root cause (misconfiguration in the user's Google Cloud Console) may still exist, but this workaround should bypass it. The agent should guide the user to test this once the current feature development is complete.
-    - **Why fix this issue and what will be achieved with the fix?** This is critical for the app to be usable in production, as it unblocks the core data connection to Google Drive.
-    - **Status:** USER VERIFICATION PENDING
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** User needs to test on the live production URL.
+- **Issue 1: Comprehensive App Audit and Bug Fixing (P0)**
+    - The user reported that multiple buttons have errors and demanded the agent act as a proxy user to check every button, interaction and fix anything that is broken or takes longer than 12 seconds to load. This audit has not been performed yet.
+    - **Status:** NOT STARTED
+- **Issue 2: Incorrect Data Source for Multiple Features (P0)**
+    - The Pricer and Low Stock features were implemented to read from a sheet named JGT, but the user's file contains a sheet named STOCK. This causes these features to fail. The agent identified this and was in the process of fixing it.
+    - **Status:** IN PROGRESS
+- **Issue 3:  Redesign and Functionality (P1)**
+    - The current Home screen does not meet requirements. The Annual Sales widget must be completely removed. A new, compact, expandable Low Stock widget must be added to the bottom-left corner. The Quick Action buttons need to be verified.
+    - **Status:** IN PROGRESS
+- **Issue 4: Google OAuth  (P2 - Blocked on User)**
+    - This is a recurring issue caused by the user's Google Cloud Console configuration not containing the correct redirect URI. The agent has repeatedly provided the correct URI to the user.
+    - **Status:** BLOCKED (Requires user action in their Google Cloud Console).
 
 **In progress Task List**:
-- **Task 1: Complete Implementation of 9 New Core Features (P0)**
-    - **Where to resume:** The agent has created the basic file structure (, ). The next step is to implement the logic for each of the 9 features, starting with the backend dependencies and then wiring up the frontend components.
-    - **What will be achieved with this?** This will deliver the complete set of features requested by the user, transforming the application's functionality.
+- **Task 1: Complete Master Prompt Feature Implementation (P0)**
+    - **Where to resume:** The user has provided a massive, consolidated list of requirements. The agent should continue implementing these features after the critical bugs are fixed.
+    - **What will be achieved with this?** This will deliver the full application functionality as requested by the user.
     - **Status:** IN PROGRESS
     - **Should Test frontend/backend/both after fix?** Both.
-    - **Blocked on something:** No.
+    - **Blocked on something:** Blocked by the critical bug fixes in the Pending Issue list.
 
-    **Sub-tasks for Task 1:**
-    1.  **Backend Logic:**
-        *   Enhance  and related endpoints to support auto-refresh and fetching the latest file.
-        *   Create logic to read In Demand sheets for Minimum Stock values.
-        *   Create logic to read the Sales FY 25-26 file.
-    2.  **Home Screen ():**
-        *   Implement the auto-refresh mechanism (e.g., ).
-        *   Fetch and display file .
-        *   Implement the low-stock alert panel, including the minimize functionality.
-        *   Implement the top-right share icon and dropdown menu.
-    3.  **Export Functionality:**
-        *   Integrate a PDF generation library (e.g., ) and create the PDF export function.
-        *   Implement WhatsApp sharing using .
-        *   Implement TXT file export/download.
-    4.  **Sales Tab ():**
-        *   Fetch data from the Sales FY 25-26 sheet.
-        *   Display the data in a responsive, scrollable table.
-    5.  **Data Integration:**
-        *   Connect all components to the Zustand store to ensure data is fresh and consistent across tabs.
-        *   Ensure the Purchase tab correctly uses the library files as specified.
+    **Key Unfinished Sub-tasks for Task 1:**
+    1.  **Pricer Tab:** Implement the UI as specified (Basic Rate input, table with calculated prices) and add a tab icon.
+    2.  **Sheet View:** Implement the Print Layout Settings panel to allow users to edit, add, and remove custom print ranges.
+    3.  **Purchase Tab:** Implement the multiple reorder list functionality (create, save, delete, export lists).
+    4.  **Debtors/Payment System:** Implement the entire three-sheet accounting system (, , ) on the backend and create the corresponding frontend UI for recording payments.
+    5.  **Performance/UX:** Implement lazy loading, table virtualization, search bars, sticky headers, and other UX improvements.
 
 **Upcoming and Future Tasks**
 **Upcoming Tasks:**
-*   **(P1) Full Implementation of Parchi/Calculator:** The UI exists, but the full calculation logic and state management need to be completed.
-*   **(P1) Full Implementation of Purchase Tab:** The UI exists, but the logic to read the correct sheets from the library file and manage the purchase list needs to be built.
-*   **(P2) Voice Search - Hindi NLP:** The initial Whisper integration is done, but the custom parser for Hinglish and the Voice Training Panel are pending.
+*   **(P1) Build and Deliver Android APK:** The  file has been created, but the EAS build process needs to be configured and run.
+*   **(P1) Implement Full Navigation System:** Implement the sticky top navigation bar, active tab highlighting, and other navigation improvements from the user's prompt.
 
 **Future Tasks:**
-*   **(P2) Parchi Log:** Implement the  screen to view and manage saved Parchis/Calculations.
-*   **(P2) Layout Builder:** A potential future feature to allow users to visually configure the rack layouts.
+*   **(P2) Keyboard shortcuts** for navigation.
+*   **(P2) Breadcrumb navigation** within modules.
 
 **Completed work in this session**
-- **OAuth Workaround:** Resolved the blocking  404 error by implementing a robust manual fallback flow where the user can paste the authorization code, making the app deployable.
-- **New Feature Scaffolding:** Created the file structure for a major feature overhaul, including , , and a new  and .
-- **Tab Navigation Rework:** Replaced Parchi with Calculator and Filter with Purchase in the main navigation layout.
-- **Central Conversion Engine:** Created a reusable utility  for handling complex unit conversions (mm, inch, NB, OD, etc.).
-- **Layout Screen Upgrade:** Added UI components for a rack search bar and a Compact Mode toggle to .
-- **Home Screen Quick Actions:** Reorganized the quick action links on the home screen for better usability.
-- **Voice Search Integration:** Integrated OpenAI Whisper for speech-to-text and implemented audio recording functionality using .
+- **OAuth Mobile Fix:** Reverted a failed attempt to use  and restored the working OAuth flow using  to open the system browser, successfully resolving the  error on mobile.
+- **Configuration Cleanup:** Fixed both frontend and backend  files multiple times to remove dead  URLs and incorrect subdomain references, standardizing on the working  URL.
+- **API File Type Fix:** Updated the backend Google Drive API query to include  files, which allowed the Sales FY 25-26.xlsm file to be correctly retrieved.
+- **Routing Fix:** Resolved an Expo Router conflict by renaming  to  and updating all references.
+- **Weight Calculator Formulas:** Corrected the formulas in  to match the user's detailed specification for calculating steel weight with mixed units.
+- **Pricer Tab Scaffolding:** Created a new  file and added it to the tab navigator, replacing the old Smart Filter.
+- **Sales Tab Fix (Partial):** Updated the  component to fetch data from the Sales sheet instead of Debtors.
 
 **Earlier issues found/mentioned but not fixed**
-- The root cause of the Google OAuth  error (likely user's Google Cloud Console configuration) was never confirmed as fixed by the user. The agent implemented a workaround instead. The next agent should be prepared to revisit this if the user continues to have issues post-deployment.
+- The root cause of the Google OAuth  error (user's Google Cloud Console configuration) is a recurring issue. The agent has consistently guided the user on how to fix it, but the fix is external to the codebase.
+- The user's request to rename the entire application/subdomain to  cannot be fulfilled on the Emergent platform for an existing project. The agent correctly identified this limitation and reverted the changes, but this needs to be clearly communicated to avoid future confusion.
 
 **Known issue recurrence from previous fork**
-- **Issue recurrence in previous fork:** Production Deployment Failures.
+- **Issue recurrence in previous fork:** Google OAuth .
 - **Recurrence count:** High.
-- **Status:** IN PROGRESS (A workaround has been implemented, but final user validation on production is pending).
+- **Status:** BLOCKED (Awaiting user action in Google Cloud Console). The workaround (manual code entry) is in place.
 
 **Code Architecture**
 
@@ -116,70 +99,69 @@ The app is in a transitional state, with many new files and code stubs that are 
 - **Frontend:** React Native, Expo, Expo Router, Zustand
 - **Backend:** FastAPI (Python)
 - **3rd Party:** Google Drive API, OpenAI Whisper
-- **Sharing/Export:** Requires  or  for WhatsApp, and a PDF library for PDF generation.
+- **OAuth on Mobile:** The correct, working method is  to launch the system browser.  and in-app WebViews are problematic and have been removed.
 
 **key DB schema**
-- No database is used. Data is fetched from Google Drive and managed in-memory with Zustand.
+- No database is used. Data is fetched live from Google Drive Excel files.
 
 **changes in tech stack**
--  was added for audio recording.
-- A PDF generation library (like ) and a sharing library () will need to be added.
+-  and  were temporarily added and then removed.
+-  and  were added to prepare for an APK build.
 
 **All files of reference**
--   : Modified to add , , and  endpoints. The OAuth callback now returns HTML.
--   : Completely rewritten to support the manual OAuth fallback flow with polling.
--   : Tabs renamed and reordered.
--   : **(New)** Placeholder file for the completely new home screen.
--   : **(New)** Placeholder file for the new sales tab.
--   : **(New)** Placeholder for the weight calculator.
--   : **(New)** Placeholder for the purchase tab.
--   : Modified to include state and UI for search bar and compact mode.
--   : **(New)** Central logic for all unit conversions.
+-   : Modified to include  in the file query. Contains the correct Google Drive API logic.
+-   : The login screen. It now uses  for the OAuth flow, which is the correct and working implementation for mobile.
+-   : Tab navigator. Has been updated to include the new  tab and reflect the renaming of  to .
+-   : Needs a complete rewrite to remove the Annual Sales section and add the Low Stock widget as per user specs.
+-   : A new file that replaces the old . Needs to be implemented and fixed to use the STOCK sheet.
+-   : Contains the corrected weight calculation formulas.
+-   : Fixed to fetch data from the Sales sheet.
+-    & : Have been corrected to use the permanent  subdomain. These should not be changed.
+-   : New file created to configure the Expo Application Services (EAS) build.
 
 **Areas that need refactoring**:
-- The old  file appears to be abandoned after being replaced by . It should be evaluated for deletion to avoid confusion.
-- The new screens (, ) are currently large, monolithic files. They should be broken down into smaller, reusable components as they are built out.
+-  needs to be completely rewritten for clarity and to meet the new requirements.
+- The old  file (and any related routes) should be deleted now that  has replaced it.
 
 **key api endpoints**
-- : **(New)** Fetches file metadata, including , from Google Drive.
-- : **(New)** Allows the frontend to poll for the status of a Google Drive connection.
-- : **(New)** Allows exchanging a manually pasted authorization code for OAuth tokens.
-- : Modified to return an HTML page instead of a redirect.
-- : Initiates the Google login flow.
+- : Main endpoint for listing Drive files. It correctly queries for , , and .
+- : Initiates the web OAuth flow.
+- : Handles the manual authorization code entry fallback.
+- : The redirect URI target for the OAuth flow.
 
 **Critical Info for New Agent**
-- **Resume the large feature implementation.** Your immediate priority is to continue the work on the 9 new features requested by the user. Do not get sidetracked.
-- **Start with the backend.** Implement the necessary backend logic in  to support fetching sales data, latest file versions, and In Demand sheet data.
-- **Build the frontend screens systematically.** Wire up , , and the export functions. Use the existing  utility for all unit calculations.
-- **The OAuth issue has a workaround.** Do not try to fix the OAuth redirect again. The manual code entry flow is the agreed-upon solution. You should only guide the user to test it on production after the current feature sprint is complete.
-- **The user requested a native share sheet and PDF export.** You will need to research and add appropriate libraries for this (, , or similar) and implement the functionality.
+- **DO NOT CHANGE THE SUBDOMAIN:** The preview URL is permanently . Do not attempt to change it to  in the  files, as this will break the application.
+- ** IS A USER-SIDE FIX:** This error requires the user to update their Google Cloud Console. The correct redirect URI is . Do not waste time trying to fix this in the code.
+- ** IS SOLVED:** The mobile OAuth error is fixed by using . Do not re-introduce  or other WebView-based solutions.
+- **PRIORITY #1: AUDIT & FIX:** The user's immediate demand is to perform a full-app audit. Go through every button and feature, identify what's broken or slow, and fix it. This is more important than adding new features right now.
+- **CORRECT SHEET NAME IS :** The agent was mid-fix. Ensure all features that read inventory data (Pricer, Low Stock, Inventory tab) are using the sheet named STOCK, not JGT.
 
 **documents and test reports created in this job**
-- /app/test_reports/iteration_6.json
-- /app/test_reports/iteration_5.json
-- /app/memory/PRD.md (Heavily updated with new requirements)
+- None created in the last session. The agent was in a bug-fixing and implementation loop.
 
 **Last 10 User Messages and any pending HUMAN messages**
-- The last several messages from the user define a very large set of 9 new features, which the agent has just begun implementing. These include auto-refresh from Drive, a low-stock alert system, automatic reordering suggestions, a new Sales tab, and advanced export options (PDF, WhatsApp, TXT). The user also specified that Minimum Stock should be taken from the Ideal Quantity in the In Demand sheets and that the Purchase tab should use files from the library.
+- User provided a final, consolidated master prompt with a huge list of requirements for inventory, calculator, sales, pricer, and navigation.
+- User reported a  error on mobile with a screenshot. (Agent fixed this).
+- User reported the app was working on mobile but several features were missing or wrong: Annual Sales on home, Pricer icon missing, Pricer not using correct data, Low Stock widget incorrect.
+- User explicitly requested the agent to act as a proxy user, test every single button and interaction, and fix anything broken or slow (>12s load time). This is the highest priority pending action.
 
 **Project Health Check:**
-- **Broken**: The application is in the middle of a major refactoring and feature implementation. Several new screens are placeholders, and core logic is missing. It is not in a runnable or testable state for end-users.
+- **Broken**: The app is not stable. While core authentication and navigation have been fixed, many features are either functionally broken (e.g., using the wrong sheet name), visually incorrect (e.g., ), or not yet implemented. It requires significant bug fixing before new development can continue.
 
 **3rd Party Integrations**
--   **Google Drive API:** Core integration for all data. The connection flow has been updated with a manual fallback.
--   **OpenAI Whisper:** Integrated via  for voice search.
--   **PDF Generation (to be added):** A library like  will be required.
--   **Native Sharing (to be added):** A library like  will be required.
+- **Google Drive API:** Used for all data operations. Connection is stable via the  method.
+- **OpenAI Whisper:** Integrated for voice search (functionality not recently tested).
 
 **Testing status**
-- Testing agent used after significant changes: YES, but not on the most recent batch of started work.
+- Testing agent used after significant changes: NO
 - Troubleshoot agent used after agent stuck in loop: NO
 - Test files created: []
-- Known regressions: None, but the app is in a broken state due to the ongoing large-scale changes.
+- Known regressions: The Pricer (any excel sheet containing the follwoing content namely JGT, like MARCH-26-JGT and Low Stock (From the sheet named MS_Inventory_System_Final) features are currently broken because they are pointing to the wrong Excel sheet name.
 
 **Credentials to test flow:**
-- Requires the user's Google account () for testing the full Google Drive data flow.
+- Requires the user's Google account for testing the full Google Drive data flow. The agent cannot complete the OAuth flow automatically and must rely on the user testing the live preview URL.
 
 **What agent forgot to execute**
-- The agent has not yet selected or installed the necessary libraries for the PDF export and native sharing functionality requested by the user. This needs to be part of the plan for implementing the 9 new features.
-- The agent acknowledged the request to update the source of the file somehow but has only implemented the backend part (). The full frontend implementation of auto-refreshing and loading the latest file is still pending.</analysis>
+- The agent has not yet performed the full application audit requested by the user to find and fix all broken/slow UI elements, and has not yet fixed the Google drive connection as it causes error everytime a new update is added, so make sure that it is robust enough so that no update shakes it.
+- The agent has not fully implemented the majority of features from the user's latest master specification, such as the editable print ranges, the multi-list purchase order system, and the three-sheet accounting system for debtors. Also, make sure the UI is user friendly and less cluttered .Finally make sure the sub-domain is excel-app-link here, but if not allowed, then tell me what to enter in oauth
+</analysis>
