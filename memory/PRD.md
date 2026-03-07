@@ -1,127 +1,128 @@
-# Smart Excel Reader — Product Requirements Document
+# Smart Excel Reader ERP - Product Requirements Document
 
-## Problem Statement
-Build a mobile-first inventory lookup and quotation app that connects to Google Drive to read Excel files, manage a sheet library, provide visual warehouse layouts, weight/length calculators, and purchase order management.
+## Original Problem Statement
+Mobile-first inventory lookup and quotation app "Excel Reader" connecting to Google Drive to read/interact with Excel files. Evolved into a lightweight ERP with:
+- Inventory management
+- Sales tracking
+- Debtors ledger with payment tracking
+- Purchase reordering
+- Weight calculator
+- Dynamic pricing tool
 
 ## Tech Stack
-- **Frontend:** React Native (Expo), Expo Router, Zustand
-- **Backend:** FastAPI (Python), MongoDB
-- **3rd Party:** Google Drive API, OpenAI Whisper (emergentintegrations)
+- **Frontend:** Expo (React Native) with Expo Router, Zustand store
+- **Backend:** FastAPI (Python) with MongoDB
+- **3rd Party:** Google Drive API, Google Sheets API
+- **Auth:** Google OAuth via `Linking.openURL` (system browser)
+- **Subdomain:** `excel-reader-erp.preview.emergentagent.com`
 
-## Navigation (Bottom Tabs)
-| Tab | Screen | Description |
-|-----|--------|-------------|
-| Home | home.tsx | Library management + Quick Actions + Auto-refresh |
-| Purchase | purchase.tsx | Purchase order from In Demand sheets |
-| Calculator | calculator.tsx | Weight calculator + Length/NB-OD converter |
-| Inventory | inventory.tsx | Master stock list |
-| Layout | layout.tsx | Visual warehouse rack layout + Search by SIZE |
-| Sales | sales.tsx | Annual Sales (FY 25-26) data view |
-
-**Hidden (via Quick View):** Filter (filter.tsx), Parchi (parchi.tsx), Sheet View (sheetview.tsx)
-
-## Completed Features (as of 06 Mar 2026)
-
-### Core
-- [x] Google OAuth with dual approach (browser redirect + manual code fallback)
-- [x] Sheet Library system (add, save, switch profiles)
-- [x] Home Quick Actions: Purchase, Calculator, Layout, Smart Filter, Parchi, Sheet View
-
-### New Features (06 Mar 2026)
-- [x] **Drive API Fix**: Changed scope to `drive.readonly` to access ALL Excel files
-- [x] **File Listing**: Fetches all .xlsx/.xls from entire Drive (not just folder)
-- [x] **Sort by Modified**: Files sorted by `modifiedTime desc` (newest first)
-- [x] **Auto-Refresh**: Home screen checks for file updates every 60 seconds
-- [x] **File Metadata**: Display file name + "Last Updated" timestamp
-- [x] **Low-Stock Alert Panel**: Bottom-left minimizable panel showing items below min stock
-- [x] **Auto-Reorder Suggestions**: Calculates `(MinStock * 2) - CurrentStock`
-- [x] **Share/Export**: Top-right dropdown with PDF, WhatsApp, TXT export options
-- [x] **Sales Tab**: New "Annual Sales" tab fetching from "Sales FY 25-26" file
-- [x] **Layout Tab Search**: Search by SIZE (not rack location), only show matching racks
-- [x] **Layout Refresh Button**: Added refresh button in search bar
-- [x] **Layout Short Names**: Show first 8 characters of size (not abbreviated)
-- [x] **SheetView Row Hiding**: Toggle row visibility with eye-off button
-- [x] **SheetView Print**: Print functionality with HP Print Service Plugin support
-- [x] **SheetView JGT Pages**: Auto-paginate JGT files (A1:O38, A39:O76, A77:O114, A115:O155)
-- [x] **SheetView Column Hiding**: Hide B,C,D,J,K,L by default (editable)
-- [x] **Purchase Tab**: Uses "F.Y. 2025-26 Final" file with In Demand sheets
-
-### Weight Calculator (NEW)
-- [x] Shape-first flow: Square / Rectangle / Round
-- [x] Unit-first selection: dimension unit (mm/inch), thickness unit (mm/inch, default mm)
-- [x] Input fields with unit labels (e.g., "Side (inch)")
-- [x] Length unit picker: mm / inch / m / feet
-- [x] Internal normalization: all dimensions → mm, length → meters
-- [x] Weight formulas: Square, Rectangle, Round (density = 0.00785)
-- [x] Share result via native share sheet
-
-### Length / NB-OD Converter (NEW)
-- [x] 7 length units: mm, cm, m, inch, feet, NB, OD
-- [x] NB↔OD pipe standard lookup table (11 entries: 15-150 NB)
-- [x] Nearest NB suggestion from OD input
-- [x] Convert button with result display
-- [x] NB/OD reference table in UI
-
-### Purchase Tab (NEW)
-- [x] Reads from saved library file (no file picker)
-- [x] Category selector: HR / Apollo / Local → loads respective "In Demand" sheet
-- [x] Table: checkbox, Item, Current, Ideal, Order (editable)
-- [x] Highlight items where Current < Ideal (red tint)
-- [x] "Show only items needing order" toggle
-- [x] Selected items horizontal chip panel
-- [x] Export: Share List (native share) + Export PDF
-- [x] Load once, cache in memory, switch category = switch view
-
-### Layout Improvements (NEW)
-- [x] Rack search bar at top (real-time filtering, highlight match)
-- [x] Short item names on rack cards (e.g., SDF(2.5MM), MSS(3MM), P(40NB))
-- [x] Compact/Detail mode toggle
-- [x] Auto-abbreviation: first letters of words + thickness notation
-- [x] Edit mode + version management (save/load/delete custom layouts)
-
-### Central Conversion Engine (utils/conversions.ts)
-- [x] NB_OD_TABLE: 15→21.34, 20→26.67, 25→33.40, 32→42.16, 40→48.26, 50→60.33, 65→73.03, 80→88.90, 100→114.30, 125→139.70, 150→168.30
-- [x] toMM/fromMM: convert any unit through mm base
-- [x] calcWeight: handles all 3 shapes with proper unit conversion
-- [x] shortItemName: auto-generates abbreviated display names
-- [x] Reusable across Calculator, Filter, Layout
-
-### Other Completed
-- [x] Visual Layout (JGT + JGI grids, rack tap dialog, stock coloring)
-- [x] Voice search with OpenAI Whisper STT (Hindi)
-- [x] Sheet View (STOCK vertical pager, 24 rows/page)
-- [x] OAuth callback returns HTML page (fixes 404 on deployed apps)
-- [x] Dark theme throughout
-
-## Upcoming Tasks
-- [ ] (P0) Smart Filter - Category shortcuts (Local, HR) + keyword search
-- [ ] (P1) Parchi - Full calculation logic, dynamic charges, GST
-- [ ] (P2) Voice Output - "Speak" button on results
-- [ ] (P2) Parchi Log screen
-- [ ] (P3) Refactor parchi.tsx (900+ lines)
-
-## File Structure
+## Architecture
 ```
 /app
 ├── backend/
-│   ├── server.py (OAuth, Drive, Layout CRUD, Voice transcribe)
-│   ├── .env
+│   ├── .env (MONGO_URL, GOOGLE_*, FRONTEND_URL)
+│   ├── server.py (FastAPI with all routes)
 │   └── requirements.txt
 └── frontend/
+    ├── .env (EXPO_PUBLIC_BACKEND_URL)
     ├── app/
-    │   ├── _layout.tsx (Root stack)
-    │   ├── login.tsx (OAuth + manual code fallback)
-    │   ├── (tabs)/
-    │   │   ├── _layout.tsx (5 visible + 4 hidden tabs)
-    │   │   ├── home.tsx (Library + 6 Quick Actions)
-    │   │   ├── purchase.tsx (Purchase orders)
-    │   │   ├── calculator.tsx (Weight + Length/NB-OD)
-    │   │   ├── inventory.tsx
-    │   │   ├── layout.tsx (Search + short names + versions)
-    │   │   ├── filter.tsx (hidden tab)
-    │   │   └── parchi.tsx (hidden tab)
-    │   └── sheetview.tsx
+    │   ├── _layout.tsx (Root layout)
+    │   ├── index.tsx (Login/splash → routes to /(tabs)/home)
+    │   ├── files.tsx (File browser - dark themed)
+    │   ├── sheets.tsx (Sheet configuration)
+    │   ├── sheetview.tsx (Sheet viewer with editable print ranges, P column visible)
+    │   └── (tabs)/
+    │       ├── _layout.tsx (Tab nav: Home, Inventory, Sales, Pricer, Calc)
+    │       ├── home.tsx (Dashboard with low stock widget using E+P columns)
+    │       ├── inventory.tsx (Dark themed inventory list)
+    │       ├── sales.tsx (Sales tab reading from Sales sheet)
+    │       ├── pricer.tsx (Pricer with E column stock names, logo header)
+    │       ├── calculator.tsx (Weight calc with toFixed fix)
+    │       ├── debtors.tsx (NEW - 3-sheet debtor ledger with payment CRUD)
+    │       ├── purchase.tsx (Purchase reorder)
+    │       ├── warehouse.tsx (Layout management)
+    │       └── filter.tsx (Smart filter - hidden tab)
     └── utils/
-        ├── store.ts (Zustand + AsyncStorage)
-        └── conversions.ts (Central engine)
+        ├── store.ts (Zustand sheet store)
+        └── conversions.ts (Weight/length conversion engine)
 ```
+
+## What's Been Implemented (as of 2026-03-07)
+
+### Core Features
+- Google OAuth flow (system browser via Linking.openURL)
+- Manual auth code entry fallback
+- File listing from Google Drive (.xlsx, .xls, .xlsm)
+- Sheet data reading via Excel API
+- Session management
+
+### Tabs & Screens
+- **Home:** Quick actions grid (9 modules), low stock widget (E col name, P col stock, >1000 filter)
+- **Inventory:** Dark-themed item list with search, sort, detail modal
+- **Sales:** Sales sheet viewer
+- **Pricer:** Basic rate input, E column stock names, size difference pricing, logo header
+- **Calculator:** Weight calculator (round/square/rectangle), length converter, NB/OD table
+- **Debtors:** 3-tab ledger (Debtors, Bills, Payments) with payment recording via MongoDB
+- **Purchase:** Category-based reorder lists (HR, Apollo, Local)
+- **SheetView:** Spreadsheet view with P column, editable print page ranges (add/edit/delete/reset)
+- **Warehouse:** Layout management
+- **Files:** Dark-themed file browser
+
+### Bug Fixes Applied
+- `sheet_names` key mismatch (root cause of Pricer/Low Stock failures)
+- Auto-redirect from `/(tabs)/filter` → `/(tabs)/home`
+- Sales error text ("Debtors" → "Sales")
+- Calculator `result.toFixed()` crash (WeightResult object handling)
+- Dark theme consistency across inventory and files screens
+- Pricer tab icon (Ionicons pricetag instead of text character)
+
+## Key API Endpoints
+- `GET /api/` - Health check
+- `POST /api/session/create` - Create session
+- `GET /api/drive/files` - List Drive files
+- `GET /api/drive/file/{id}/sheets` - List sheet names
+- `GET /api/excel/read` - Read sheet data
+- `POST /api/debtors/payments/record` - Record payment
+- `GET /api/debtors/payments/list` - List payments
+- `DELETE /api/debtors/payments/{date}` - Delete payment
+
+## Data Source
+- Excel files in Google Drive (no local database for inventory data)
+- MongoDB used for: sessions, payments, layouts, configs
+
+## Column Mapping (STOCK Sheet)
+- A (0): Item code
+- E (4): Stock item name
+- I (8): Size difference
+- M (12): Legacy stock column
+- N (13): Additional data
+- O (14): Stock quantity
+- P (15): Order quantity / reorder amount
+
+## Pending Tasks (Prioritized)
+
+### P1 - High Priority
+- Purchase Tab: Multiple reorder list management (create/save/delete/export named lists)
+- Navigation improvements: Sticky top nav bar, active tab highlighting
+
+### P2 - Medium Priority
+- APK build via EAS (eas.json created)
+- PDF/TXT export implementation
+- Keyboard shortcuts for navigation
+- Breadcrumb navigation within modules
+
+### P3 - Future/Backlog
+- Smart Filter category shortcuts
+- Performance: Table virtualization for large datasets
+- Search bars with autocomplete in all data views
+
+## Known Issues
+- Google OAuth `redirect_uri_mismatch`: Requires user to configure their Google Cloud Console with correct redirect URI
+- `shadow*` style deprecation warnings in Expo (cosmetic, non-breaking)
+- `expo-av` deprecation warning (non-blocking)
+
+## Critical Notes
+- **DO NOT change subdomain** from `excel-reader-erp`
+- **OAuth redirect URI:** `https://excel-reader-erp.preview.emergentagent.com/api/oauth/drive/callback`
+- **Sheet name is STOCK** (not "JGT") for inventory data
+- **Mobile OAuth:** Use `Linking.openURL` only, never WebView or expo-auth-session
