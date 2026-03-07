@@ -772,6 +772,54 @@ async def transcribe_audio(file: UploadFile = File(...), language: str = Form(de
         logger.error(f"Transcription failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
+# ==================== DEBTORS / PAYMENTS ====================
+
+class PaymentRecord(BaseModel):
+    debtor_name: str
+    amount: float
+    date: str
+    reference: Optional[str] = None
+    notes: Optional[str] = None
+
+@api_router.post("/debtors/payments/record")
+async def record_payment(payment: PaymentRecord, session_id: str = Query(...)):
+    """Record a new payment in MongoDB"""
+    doc = {
+        "session_id": session_id,
+        "debtor_name": payment.debtor_name,
+        "amount": payment.amount,
+        "date": payment.date,
+        "reference": payment.reference,
+        "notes": payment.notes,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.payments.insert_one(doc)
+    return {"status": "ok", "message": "Payment recorded"}
+
+@api_router.get("/debtors/payments/list")
+async def list_payments(session_id: str = Query(...), debtor_name: Optional[str] = None):
+    """List all locally recorded payments"""
+    query: Dict[str, Any] = {"session_id": session_id}
+    if debtor_name:
+        query["debtor_name"] = debtor_name
+    cursor = db.payments.find(query, {"_id": 0}).sort("created_at", -1)
+    payments = await cursor.to_list(length=500)
+    return {"payments": payments}
+
+@api_router.delete("/debtors/payments/{payment_date}")
+async def delete_payment(payment_date: str, session_id: str = Query(...), debtor_name: str = Query(...)):
+    """Delete a payment record"""
+    result = await db.payments.delete_one({
+        "session_id": session_id,
+        "debtor_name": debtor_name,
+        "date": payment_date,
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    return {"status": "ok", "message": "Payment deleted"}
+
+
+
 # Include the router in the main app
 app.include_router(api_router)
 

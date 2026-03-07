@@ -168,7 +168,7 @@ export default function SalesTab() {
         <Ionicons name="document-outline" size={48} color="#FA7B17" />
         <Text style={st.centerTitle}>Sales File Not Found</Text>
         <Text style={st.centerSub}>Could not find "Sales FY 25-26" file in your Drive.</Text>
-        <Text style={st.centerHint}>Make sure the file exists and contains a sheet named "Debtors".</Text>
+        <Text style={st.centerHint}>Make sure the file exists and contains a sheet named "Sales".</Text>
         <TouchableOpacity style={st.retryBtn} onPress={() => fetchSalesData(false)} data-testid="retry-btn">
           <Ionicons name="refresh" size={18} color="#fff" />
           <Text style={st.retryBtnText}>Retry</Text>

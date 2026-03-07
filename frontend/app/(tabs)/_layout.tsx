@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, Text } from 'react-native';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
   return (
@@ -55,7 +55,7 @@ export default function TabLayout() {
         options={{
           title: 'Pricer',
           tabBarIcon: ({ color, focused }) => (
-            <Text style={{ fontSize: 18, fontWeight: '700', color }}></Text>
+            <Ionicons name={focused ? 'pricetag' : 'pricetag-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -75,6 +75,7 @@ export default function TabLayout() {
       <Tabs.Screen name="parchi" options={{ href: null }} />
       <Tabs.Screen name="recent" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="debtors" options={{ href: null }} />
     </Tabs>
   );
 }

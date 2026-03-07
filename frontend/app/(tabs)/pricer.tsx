@@ -12,6 +12,7 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 interface PricerItem {
   item: string;
+  stockName: string;
   sizeDifference: number;
   stock: number;
   totalRate: number;
@@ -88,7 +89,7 @@ export default function PricerTab() {
       const sheetsRes = await axios.get(
         `${BACKEND_URL}/api/drive/file/${jgtFile.file_id}/sheets?session_id=${sid}`
       );
-      const sheets = sheetsRes.data.sheets || [];
+      const sheets = sheetsRes.data.sheet_names || [];
       // Use STOCK sheet or the first available sheet
       const stockSheet = sheets.find((s: string) => s.toLowerCase().includes('stock')) || sheets[0];
       if (!stockSheet) {
@@ -97,9 +98,9 @@ export default function PricerTab() {
         return;
       }
 
-      // Fetch the sheet data - we need columns A (Item), I (Size Difference), O (Stock)
+      // Fetch the sheet data - we need columns A (Item), E (Stock Name), I (Size Difference), O (Stock), P (Order Qty)
       const dataRes = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${jgtFile.file_id}&sheet_name=${encodeURIComponent(stockSheet)}&cell_range=A1:O200&_t=${Date.now()}`
+        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${jgtFile.file_id}&sheet_name=${encodeURIComponent(stockSheet)}&cell_range=A1:P200&_t=${Date.now()}`
       );
       
       const rows: any[] = dataRes.data.data || [];
@@ -134,7 +135,7 @@ export default function PricerTab() {
   };
 
   // Calculate pricer data based on basic rate
-  // Column mapping: A=0, I=8 (Size Difference), O=14 (Stock)
+  // Column mapping: A=0, E=4 (Stock Name), I=8 (Size Difference), O=14 (Stock), P=15 (Order Qty)
   const pricerData = useMemo((): PricerItem[] => {
     const rate = parseFloat(basicRate) || 0;
     
@@ -146,6 +147,7 @@ export default function PricerTab() {
       })
       .map((row: any) => {
         const item = row[0] || ''; // Column A
+        const stockName = row[4] || ''; // Column E - Stock item name
         const sizeDifference = parseFloat(row[8]) || 0; // Column I
         const stock = parseFloat(row[14]) || 0; // Column O
         
@@ -157,6 +159,7 @@ export default function PricerTab() {
         
         return {
           item,
+          stockName,
           sizeDifference,
           stock,
           totalRate: Math.round(totalRate * 100) / 100,
@@ -170,7 +173,7 @@ export default function PricerTab() {
     if (!searchQuery.trim()) return pricerData;
     const q = searchQuery.toLowerCase().trim();
     return pricerData.filter(item => 
-      item.item.toLowerCase().includes(q)
+      item.item.toLowerCase().includes(q) || item.stockName.toLowerCase().includes(q)
     );
   }, [pricerData, searchQuery]);
 
@@ -288,7 +291,8 @@ export default function PricerTab() {
       >
         {/* Table Header */}
         <View style={st.tableHeader}>
-          <Text style={[st.headerCell, { flex: 2 }]}>Item</Text>
+          <Text style={[st.headerCell, { flex: 1.5 }]}>Item</Text>
+          <Text style={[st.headerCell, { flex: 2 }]}>Stock Name</Text>
           <Text style={[st.headerCell, { flex: 1 }]}>Size Diff</Text>
           <Text style={[st.headerCell, { flex: 1 }]}>Stock (kg)</Text>
           <Text style={[st.headerCell, { flex: 1 }]}>Total Rate</Text>
@@ -298,7 +302,8 @@ export default function PricerTab() {
         {/* Table Rows */}
         {filteredData.map((item, idx) => (
           <View key={idx} style={[st.tableRow, idx % 2 === 0 ? st.rowEven : st.rowOdd]}>
-            <Text style={[st.cell, { flex: 2 }]} numberOfLines={2}>{item.item}</Text>
+            <Text style={[st.cell, { flex: 1.5 }]} numberOfLines={2}>{item.item}</Text>
+            <Text style={[st.cell, { flex: 2 }]} numberOfLines={2}>{item.stockName}</Text>
             <Text style={[st.cell, { flex: 1 }]}>{item.sizeDifference}</Text>
             <Text style={[st.cell, { flex: 1 }, item.stock <= 0 && st.stockEmpty]}>
               {item.stock > 0 ? item.stock.toFixed(1) : '-'}
@@ -325,8 +330,13 @@ export default function PricerTab() {
 function Header() {
   return (
     <View style={st.header}>
-      <Text style={st.headerIcon}>₹</Text>
-      <Text style={st.headerTitle}>Pricer</Text>
+      <View style={st.logoBox}>
+        <Ionicons name="reader" size={20} color="#4285F4" />
+      </View>
+      <View>
+        <Text style={st.headerBrand}>Excel Reader</Text>
+        <Text style={st.headerTitle}>Pricer Tool</Text>
+      </View>
     </View>
   );
 }
@@ -339,7 +349,12 @@ const st = StyleSheet.create({
     backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460',
   },
   headerIcon: { fontSize: 24, fontWeight: '700', color: '#FBBC05' },
+  headerBrand: { fontSize: 10, fontWeight: '500', color: '#9aa0a6', letterSpacing: 1, textTransform: 'uppercase' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  logoBox: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: '#0f3460', alignItems: 'center', justifyContent: 'center',
+  },
   rateInputBox: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingVertical: 12,

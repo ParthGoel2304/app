@@ -114,29 +114,29 @@ export default function HomeScreen() {
       const sheetsRes = await axios.get(
         `${BACKEND_URL}/api/drive/file/${jgtFile.file_id}/sheets?session_id=${sid}`
       );
-      const sheets = sheetsRes.data.sheets || [];
+      const sheets = sheetsRes.data.sheet_names || [];
       // Use STOCK sheet or the first available sheet
       const stockSheet = sheets.find((s: string) => s.toLowerCase().includes('stock')) || sheets[0];
       if (!stockSheet) return;
 
-      // Fetch the sheet data - M column is stock
+      // Fetch the sheet data - need E column (name) and P column (order quantity)
       const dataRes = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${jgtFile.file_id}&sheet_name=${encodeURIComponent(stockSheet)}&cell_range=A1:O200&_t=${Date.now()}`
+        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${jgtFile.file_id}&sheet_name=${encodeURIComponent(stockSheet)}&cell_range=A1:P200&_t=${Date.now()}`
       );
       const rows = dataRes.data.data || [];
       
-      // Calculate low stock items (where stock < 10)
+      // Low stock items: where P column (index 15) order quantity > 1000
+      // Show E column (index 4) as name, P column (index 15) as stock (kg)
       const items: LowStockItem[] = [];
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row[0]) continue; // Skip empty rows
-        const stock = parseFloat(row[12]) || 0; // Column M (index 12)
-        const minStock = 10; // Default minimum
-        if (stock < minStock && stock >= 0) {
+        if (!row[4]) continue; // Skip rows without stock name (E column)
+        const orderQty = parseFloat(row[15]) || 0; // Column P (index 15)
+        if (orderQty > 1000) {
           items.push({
-            item: row[0] || `Row ${i + 1}`,
-            current: stock,
-            minStock: minStock,
+            item: row[4] || `Row ${i + 1}`, // E column - Stock item name
+            current: orderQty, // P column value as stock (kg)
+            minStock: 1000,
           });
         }
       }
@@ -239,6 +239,7 @@ export default function HomeScreen() {
     { label: 'Inventory', icon: 'cube', color: '#4285F4', bg: '#E8F0FE', route: '/(tabs)/inventory' },
     { label: 'Sales', icon: 'receipt', color: '#34A853', bg: '#E6F4EA', route: '/(tabs)/sales' },
     { label: 'Purchase', icon: 'cart', color: '#E65100', bg: '#FFF3E0', route: '/(tabs)/purchase' },
+    { label: 'Debtors', icon: 'people', color: '#EA4335', bg: '#FCE8E6', route: '/(tabs)/debtors' },
     { label: 'Pricer', icon: 'pricetag', color: '#FBBC05', bg: '#FEF7E0', route: '/(tabs)/pricer' },
     { label: 'Calculator', icon: 'calculator', color: '#9C27B0', bg: '#F0E6FE', route: '/(tabs)/calculator' },
     { label: 'Layout', icon: 'grid', color: '#1565C0', bg: '#E3F2FD', route: '/(tabs)/warehouse' },

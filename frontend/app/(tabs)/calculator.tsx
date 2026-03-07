@@ -77,7 +77,12 @@ export default function CalculatorScreen() {
       input.od = o;
     }
 
-    setResult(calcWeight(input));
+    const weightResult = calcWeight(input);
+    if (weightResult.valid) {
+      setResult(weightResult.weight);
+    } else {
+      Alert.alert('Error', weightResult.error || 'Invalid input');
+    }
   };
 
   // ─── Length Converter Logic ───────────────────────────────────────
@@ -86,6 +91,10 @@ export default function CalculatorScreen() {
     if (isNaN(val)) { setConvertedValue(null); return; }
 
     const converted = convertLength(val, fromUnit as any, toUnit as any);
+    if (isNaN(converted) || converted === undefined) {
+      setConvertedValue(null);
+      return;
+    }
     setConvertedValue(converted.toFixed(4));
 
     // Extra NB/OD info

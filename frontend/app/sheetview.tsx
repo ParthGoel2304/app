@@ -19,9 +19,9 @@ const { width: SW } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 // Default visible column indices (0-based from A)
-// A=0, E=4, F=5, G=6, H=7, I=8, M=12, N=13, O=14
-const DEFAULT_VIS_COLS = [0, 4, 5, 6, 7, 8, 12, 13, 14];
-const COL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'];
+// A=0, E=4, F=5, G=6, H=7, I=8, M=12, N=13, O=14, P=15
+const DEFAULT_VIS_COLS = [0, 4, 5, 6, 7, 8, 12, 13, 14, 15];
+const COL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'];
 
 // Columns to hide by default for JGT files: B=1, C=2, D=3, J=9, K=10, L=11
 const JGT_HIDDEN_COLS = [1, 2, 3, 9, 10, 11];
@@ -29,10 +29,10 @@ const JGT_HIDDEN_COLS = [1, 2, 3, 9, 10, 11];
 // Default JGT Page configuration (user-editable)
 // Updated print ranges as per specification
 const DEFAULT_JGT_PAGES = [
-  { name: 'Page 1', startRow: 1, endRow: 42, startCol: 'A', endCol: 'O' },
-  { name: 'Page 2', startRow: 43, endRow: 74, startCol: 'A', endCol: 'O' },
-  { name: 'Page 3', startRow: 77, endRow: 112, startCol: 'A', endCol: 'O' },
-  { name: 'Page 4', startRow: 115, endRow: 153, startCol: 'A', endCol: 'O' },
+  { name: 'Page 1', startRow: 1, endRow: 42, startCol: 'A', endCol: 'P' },
+  { name: 'Page 2', startRow: 43, endRow: 74, startCol: 'A', endCol: 'P' },
+  { name: 'Page 3', startRow: 77, endRow: 112, startCol: 'A', endCol: 'P' },
+  { name: 'Page 4', startRow: 115, endRow: 153, startCol: 'A', endCol: 'P' },
 ];
 
 const ROWS_PER_PAGE = 24;
@@ -60,6 +60,8 @@ export default function SheetViewScreen() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set([0, 1, 2, 3]));
   const [isPrinting, setIsPrinting] = useState(false);
+  const [customPages, setCustomPages] = useState(DEFAULT_JGT_PAGES);
+  const [editingPage, setEditingPage] = useState<{ idx: number; name: string; startRow: string; endRow: string } | null>(null);
 
   // Detect if current file is JGT
   const isJGTFile = useMemo(() => {
@@ -86,6 +88,12 @@ export default function SheetViewScreen() {
     const savedHiddenCols = await AsyncStorage.getItem('sheetview_hidden_cols');
     if (savedHiddenCols) {
       setHiddenCols(new Set(JSON.parse(savedHiddenCols)));
+    }
+
+    // Load custom print pages
+    const savedPages = await AsyncStorage.getItem('sheetview_print_pages');
+    if (savedPages) {
+      setCustomPages(JSON.parse(savedPages));
     }
     
     const ts = await AsyncStorage.getItem('sheetview_timestamp');
@@ -190,6 +198,52 @@ export default function SheetViewScreen() {
     });
   };
 
+  // Save custom pages to AsyncStorage
+  const saveCustomPages = async (pages: typeof DEFAULT_JGT_PAGES) => {
+    setCustomPages(pages);
+    await AsyncStorage.setItem('sheetview_print_pages', JSON.stringify(pages));
+  };
+
+  // Add a new page range
+  const addPageRange = () => {
+    const lastPage = customPages[customPages.length - 1];
+    const newPage = {
+      name: `Page ${customPages.length + 1}`,
+      startRow: lastPage ? lastPage.endRow + 1 : 1,
+      endRow: lastPage ? lastPage.endRow + 30 : 30,
+      startCol: 'A', endCol: 'O'
+    };
+    const updated = [...customPages, newPage];
+    saveCustomPages(updated);
+    setSelectedPages(prev => { const n = new Set(prev); n.add(updated.length - 1); return n; });
+  };
+
+  // Edit a page range
+  const saveEditPage = () => {
+    if (!editingPage) return;
+    const start = parseInt(editingPage.startRow) || 1;
+    const end = parseInt(editingPage.endRow) || start + 20;
+    const updated = customPages.map((p, i) =>
+      i === editingPage.idx ? { ...p, name: editingPage.name || `Page ${i + 1}`, startRow: start, endRow: end } : p
+    );
+    saveCustomPages(updated);
+    setEditingPage(null);
+  };
+
+  // Remove a page range
+  const removePageRange = (idx: number) => {
+    if (customPages.length <= 1) { Alert.alert('Cannot Delete', 'You need at least one page range.'); return; }
+    const updated = customPages.filter((_, i) => i !== idx);
+    saveCustomPages(updated);
+    setSelectedPages(prev => { const n = new Set(prev); n.delete(idx); return n; });
+  };
+
+  // Reset page ranges to default
+  const resetPageRanges = () => {
+    saveCustomPages(DEFAULT_JGT_PAGES);
+    setSelectedPages(new Set([0, 1, 2, 3]));
+  };
+
   // Generate HTML for printing
   const generatePrintHTML = useCallback(() => {
     const visColIndices = visibleCols;
@@ -219,7 +273,7 @@ export default function SheetViewScreen() {
       // JGT file: use predefined page ranges
       const sortedPages = [...selectedPages].sort((a, b) => a - b);
       sortedPages.forEach((pageIdx, pIdx) => {
-        const pageConfig = DEFAULT_JGT_PAGES[pageIdx];
+        const pageConfig = customPages[pageIdx];
         if (!pageConfig) return;
 
         html += `<h2>${stockProfile?.fileName || 'Sheet'} - ${pageConfig.name}</h2>`;
@@ -501,23 +555,57 @@ export default function SheetViewScreen() {
             
             {isJGTFile ? (
               <>
-                <Text style={st.modalHint}>Select pages to print (JGT file detected)</Text>
-                <View style={st.pageGrid}>
-                  {DEFAULT_JGT_PAGES.map((page, idx) => (
-                    <TouchableOpacity 
-                      key={idx}
-                      style={[st.pageCard, selectedPages.has(idx) && st.pageCardSelected]}
-                      onPress={() => togglePageSelection(idx)}
-                    >
-                      <Ionicons 
-                        name={selectedPages.has(idx) ? 'checkbox' : 'square-outline'} 
-                        size={20} 
-                        color={selectedPages.has(idx) ? '#4285F4' : '#9aa0a6'} 
-                      />
-                      <Text style={st.pageCardTitle}>{page.name}</Text>
-                      <Text style={st.pageCardRange}>Rows {page.startRow}-{page.endRow}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <Text style={st.modalHint}>Select pages to print (JGT file detected). Tap edit icon to modify ranges.</Text>
+                <ScrollView style={{ maxHeight: 280 }}>
+                  <View style={st.pageGrid}>
+                    {customPages.map((page, idx) => (
+                      <View key={idx} style={[st.pageCard, selectedPages.has(idx) && st.pageCardSelected]}>
+                        <TouchableOpacity style={{ flex: 1 }} onPress={() => togglePageSelection(idx)}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons 
+                              name={selectedPages.has(idx) ? 'checkbox' : 'square-outline'} 
+                              size={18} 
+                              color={selectedPages.has(idx) ? '#4285F4' : '#9aa0a6'} 
+                            />
+                            <Text style={st.pageCardTitle}>{page.name}</Text>
+                          </View>
+                          <Text style={st.pageCardRange}>Rows {page.startRow}-{page.endRow}</Text>
+                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                          <TouchableOpacity onPress={() => setEditingPage({ idx, name: page.name, startRow: String(page.startRow), endRow: String(page.endRow) })} data-testid={`edit-page-${idx}`}>
+                            <Ionicons name="pencil-outline" size={16} color="#FBBC05" />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => removePageRange(idx)} data-testid={`delete-page-${idx}`}>
+                            <Ionicons name="trash-outline" size={16} color="#EA4335" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                  {/* Edit Page Inline */}
+                  {editingPage && (
+                    <View style={st.editPageRow}>
+                      <TextInput style={[st.editInput, { flex: 2 }]} value={editingPage.name}
+                        onChangeText={v => setEditingPage({ ...editingPage, name: v })} placeholder="Name" placeholderTextColor="#5f6368" />
+                      <TextInput style={st.editInput} value={editingPage.startRow}
+                        onChangeText={v => setEditingPage({ ...editingPage, startRow: v })} placeholder="Start" placeholderTextColor="#5f6368" keyboardType="numeric" />
+                      <TextInput style={st.editInput} value={editingPage.endRow}
+                        onChangeText={v => setEditingPage({ ...editingPage, endRow: v })} placeholder="End" placeholderTextColor="#5f6368" keyboardType="numeric" />
+                      <TouchableOpacity onPress={saveEditPage} style={st.editSaveBtn} data-testid="save-page-edit">
+                        <Ionicons name="checkmark" size={18} color="#34A853" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </ScrollView>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity style={st.addPageBtn} onPress={addPageRange} data-testid="add-page-range">
+                    <Ionicons name="add-circle-outline" size={16} color="#4285F4" />
+                    <Text style={st.addPageBtnText}>Add Page</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={st.resetPageBtn} onPress={resetPageRanges} data-testid="reset-page-ranges">
+                    <Ionicons name="refresh-outline" size={16} color="#9aa0a6" />
+                    <Text style={st.resetPageBtnText}>Reset</Text>
+                  </TouchableOpacity>
                 </View>
               </>
             ) : (
@@ -677,10 +765,17 @@ const st = StyleSheet.create({
   showAllBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   // Print modal
   pageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  pageCard: { width: '47%', backgroundColor: '#f8f9fa', borderRadius: 12, padding: 12, borderWidth: 2, borderColor: 'transparent', alignItems: 'center' },
+  pageCard: { width: '47%', backgroundColor: '#f8f9fa', borderRadius: 12, padding: 12, borderWidth: 2, borderColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pageCardSelected: { borderColor: '#4285F4', backgroundColor: '#E8F0FE' },
-  pageCardTitle: { fontSize: 14, fontWeight: '700', color: '#202124', marginTop: 8 },
-  pageCardRange: { fontSize: 11, color: '#5f6368', marginTop: 4 },
+  pageCardTitle: { fontSize: 13, fontWeight: '700', color: '#202124' },
+  pageCardRange: { fontSize: 11, color: '#5f6368', marginTop: 2 },
+  editPageRow: { flexDirection: 'row', gap: 6, marginTop: 8, alignItems: 'center', padding: 8, backgroundColor: '#f0f4ff', borderRadius: 8 },
+  editInput: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#d0d0d0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, color: '#202124' },
+  editSaveBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#E6F4EA', justifyContent: 'center', alignItems: 'center' },
+  addPageBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: '#E8F0FE', borderWidth: 1, borderColor: '#4285F4' },
+  addPageBtnText: { fontSize: 13, fontWeight: '600', color: '#4285F4' },
+  resetPageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e0e0e0' },
+  resetPageBtnText: { fontSize: 13, fontWeight: '500', color: '#9aa0a6' },
   printInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#E8F0FE', padding: 12, borderRadius: 10, marginBottom: 16 },
   printInfoText: { flex: 1, fontSize: 12, color: '#4285F4', lineHeight: 18 },
   printBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#34A853', paddingVertical: 14, borderRadius: 12 },

@@ -47,8 +47,8 @@ export default function EntryScreen() {
             cellRange,
             loadedAt: Date.now(),
           });
-          // Data loaded — jump straight to Filter
-          router.replace('/(tabs)/filter' as any);
+          // Data loaded — jump straight to Home
+          router.replace('/(tabs)/home' as any);
           return;
         } catch {
           // Auto-load failed — go to Home tab (user can manually load)

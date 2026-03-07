@@ -186,12 +186,13 @@ export default function FilesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1a1a2e',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#1a1a2e',
   },
   header: {
     flexDirection: 'row',
@@ -199,14 +200,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#16213e',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#0f3460',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#202124',
+    color: '#fff',
   },
   logoutButton: {
     padding: 8,
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#5f6368',
+    color: '#9aa0a6',
   },
   listContent: {
     padding: 16,
@@ -222,11 +223,12 @@ const styles = StyleSheet.create({
   fileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#16213e',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#0f3460',
   },
   fileIcon: {
     marginRight: 16,
@@ -237,12 +239,12 @@ const styles = StyleSheet.create({
   fileName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#202124',
+    color: '#fff',
     marginBottom: 4,
   },
   fileDetails: {
     fontSize: 12,
-    color: '#5f6368',
+    color: '#9aa0a6',
   },
   emptyContainer: {
     flex: 1,
@@ -253,12 +255,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#202124',
+    color: '#fff',
     marginTop: 16,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#5f6368',
+    color: '#9aa0a6',
     textAlign: 'center',
     marginTop: 8,
   },
@@ -268,7 +270,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: '#E8F0FE',
+    backgroundColor: '#0f3460',
     borderRadius: 8,
   },
   refreshButtonText: {
