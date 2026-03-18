@@ -28,7 +28,7 @@ export default function LoginScreen() {
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
 
-  const checkExistingSession = async () => {
+const checkExistingSession = async () => {
     const sid = await AsyncStorage.getItem('session_id');
     // Auto-connect with hardcoded refresh token if not already connected
     if (sid) {
@@ -43,6 +43,7 @@ export default function LoginScreen() {
       } catch (e) {}
     }
   };
+
 
   const checkConnectionStatus = async (sid: string): Promise<boolean> => {
     try {
