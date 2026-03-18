@@ -455,7 +455,7 @@ async def check_drive_status(session_id: str = Query(...)):
     }
 
 # Office folder ID - loaded from environment variable (optional, for folder-specific queries)
-OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '14pVmKjmdbF7R2Qpy3P2pQshz3LkN_vTJ')
+OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '1pWl-lmEYlZFwRiWB1StMe9hOyQnxlXCv')
 
 # 5. LIST EXCEL FILES FROM DRIVE (ALL Excel files, sorted by modifiedTime desc)
 @api_router.get("/drive/files")
@@ -466,11 +466,8 @@ async def list_excel_files(session_id: str = Query(...), folder_only: bool = Que
         
         # Query for ALL Excel files (.xlsx, .xls, and .xlsm) from Drive
         # Include macro-enabled workbooks (.xlsm)
-        if folder_only and OFFICE_FOLDER_ID:
-            query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
-        else:
-            query = "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
-        
+        query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
+                
         # Force fresh query - no caching, sorted by modifiedTime desc (newest first)
         results = service.files().list(
             q=query,
