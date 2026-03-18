@@ -208,6 +208,7 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
             include_granted_scopes='true',
             prompt='consent',
             state=session_id
+            enable_granular_consent='true'
         )
         
         logger.info(f"Drive OAuth initiated for session {session_id}")
