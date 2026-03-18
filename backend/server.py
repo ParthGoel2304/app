@@ -226,6 +226,7 @@ class ManualTokenConnect(BaseModel):
     auth_code: str = None
 
 @api_router.post("/oauth/drive/manual-connect")
+@api_router.post("/oauth/drive/manual-connect")
 async def manual_drive_connect(data: ManualTokenConnect):
     """Connect Drive by manually providing refresh token or auth code"""
     try:
@@ -262,7 +263,6 @@ async def manual_drive_connect(data: ManualTokenConnect):
     except Exception as e:
         logger.error(f"Manual connect failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Manual connect failed: {str(e)}")
-
 # 2.5 EXCHANGE CODE FROM EXPO-AUTH-SESSION
 class ExchangeCodeRequest(BaseModel):
     session_id: str
@@ -452,7 +452,7 @@ async def list_excel_files(session_id: str = Query(...), folder_only: bool = Que
         # Query for ALL Excel files (.xlsx, .xls, and .xlsm) from Drive
         # Include macro-enabled workbooks (.xlsm)
         query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
-        
+                
         # Force fresh query - no caching, sorted by modifiedTime desc (newest first)
         results = service.files().list(
             q=query,
