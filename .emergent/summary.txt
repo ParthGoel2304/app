@@ -163,5 +163,5 @@ The application is in a broken but partially functional state. Core navigation a
 
 **What agent forgot to execute**
 - The agent has not yet performed the full application audit requested by the user to find and fix all broken/slow UI elements, and has not yet fixed the Google drive connection as it causes error everytime a new update is added, so make sure that it is robust enough so that no update shakes it.
-- The agent has not fully implemented the majority of features from the user's latest master specification, such as the editable print ranges, the multi-list purchase order system, and the three-sheet accounting system for debtors. Also, make sure the UI is user friendly and less cluttered .Finally make sure the sub-domain is excel-app-link here, but if not allowed, then tell me what to enter in oauth
+- The agent has not fully implemented the majority of features from the user's latest master specification, such as the editable print ranges, the multi-list purchase order system, and the three-sheet accounting system for debtors. Also, make sure the UI is user friendly and less cluttered .Finally make sure the sub-domain is excel-reader-erp here, but if not allowed, then tell me what to enter in oauth
 </analysis>

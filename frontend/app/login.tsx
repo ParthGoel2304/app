@@ -30,15 +30,17 @@ export default function LoginScreen() {
 
   const checkExistingSession = async () => {
     const sid = await AsyncStorage.getItem('session_id');
+    // Auto-connect with hardcoded refresh token if not already connected
     if (sid) {
-      try {
-        const res = await axios.get(`${BACKEND_URL}/api/drive/status?session_id=${sid}`);
-        if (res.data.connected) {
-          router.replace('/(tabs)/home' as any);
-          return;
+    try {
+        const status = await axios.get(`${BACKEND_URL}/api/drive/status?session_id=${sid}`);
+        if (!status.data.connected) {
+            await axios.post(`${BACKEND_URL}/api/oauth/drive/manual-connect`, {
+                session_id: sid,
+                auth_code: null
+            });
         }
-      } catch {}
-      setSessionId(sid);
+      } catch (e) {}
     }
   };
 

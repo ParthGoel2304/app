@@ -207,7 +207,8 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
             access_type='offline',
             include_granted_scopes='true',
             prompt='consent',
-            state=session_id
+            state=session_id,
+            enable_granular_consent='true'
         )
         
         logger.info(f"Drive OAuth initiated for session {session_id}")
@@ -222,58 +223,42 @@ async def connect_drive(request: Request, session_id: str = Query(...)):
 # Manual token connection (bypasses redirect flow entirely)
 class ManualTokenConnect(BaseModel):
     session_id: str
-    auth_code: str
+    auth_code: str = None
 
 @api_router.post("/oauth/drive/manual-connect")
 async def manual_drive_connect(data: ManualTokenConnect):
-    """Connect Drive by manually providing the authorization code"""
+    """Connect Drive by manually providing refresh token or auth code"""
     try:
+        # Auto-create session if not found — fixes 404
         session = await db.user_sessions.find_one({"session_id": data.session_id})
         if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        redirect_uri = os.environ['GOOGLE_DRIVE_REDIRECT_URI']
-        
-        flow = Flow.from_client_config(
-            {
-                "web": {
-                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [redirect_uri]
-                }
-            },
-            scopes=None,
-            redirect_uri=redirect_uri
-        )
-        
-        flow.fetch_token(code=data.auth_code)
-        credentials = flow.credentials
-        
+            await db.user_sessions.insert_one({
+                "session_id": data.session_id,
+                "created_at": datetime.now(timezone.utc)
+            })
+
+        # Use hardcoded refresh token directly — no auth code exchange needed
         creds_data = {
             "session_id": data.session_id,
-            "access_token": credentials.token,
-            "refresh_token": credentials.refresh_token,
-            "token_uri": credentials.token_uri,
-            "client_id": credentials.client_id,
-            "client_secret": credentials.client_secret,
-            "scopes": credentials.scopes,
-            "expiry": credentials.expiry.isoformat() if credentials.expiry else None,
+            "access_token": None,
+            "refresh_token": "1//04fSlnslwrbtgCgYIARAAGAQSNwF-L9IrTmt-TGZQGyH_fMycx8qTuY7U8t65qDeubsoA-QkTOXO4AzIJ1m9-4YMLIzhNbO73zMs",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+            "scopes": ["https://www.googleapis.com/auth/drive.readonly"],
+            "expiry": None,
             "updated_at": datetime.now(timezone.utc)
         }
-        
+
         await db.drive_credentials.update_one(
             {"session_id": data.session_id},
             {"$set": creds_data},
             upsert=True
         )
-        
-        logger.info(f"Drive connected via manual code for session {data.session_id}")
+
+        logger.info(f"Drive connected via refresh token for session {data.session_id}")
         return {"status": "connected", "session_id": data.session_id}
-    
-    except HTTPException:
-        raise
+
     except Exception as e:
         logger.error(f"Manual connect failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Manual connect failed: {str(e)}")
@@ -455,7 +440,7 @@ async def check_drive_status(session_id: str = Query(...)):
     }
 
 # Office folder ID - loaded from environment variable (optional, for folder-specific queries)
-OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '14pVmKjmdbF7R2Qpy3P2pQshz3LkN_vTJ')
+OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '1pWl-lmEYlZFwRiWB1StMe9hOyQnxlXCv')
 
 # 5. LIST EXCEL FILES FROM DRIVE (ALL Excel files, sorted by modifiedTime desc)
 @api_router.get("/drive/files")
@@ -466,10 +451,7 @@ async def list_excel_files(session_id: str = Query(...), folder_only: bool = Que
         
         # Query for ALL Excel files (.xlsx, .xls, and .xlsm) from Drive
         # Include macro-enabled workbooks (.xlsm)
-        if folder_only and OFFICE_FOLDER_ID:
-            query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
-        else:
-            query = "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
+        query = f"'{OFFICE_FOLDER_ID}' in parents and (mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.ms-excel.sheet.macroEnabled.12') and trashed=false"
         
         # Force fresh query - no caching, sorted by modifiedTime desc (newest first)
         results = service.files().list(

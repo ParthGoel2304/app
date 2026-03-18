@@ -101,50 +101,75 @@ export default function HomeScreen() {
   };
 
   const loadLowStockData = async (category?: 'L' | 'HR' | 'A') => {
-    try {
-      setLoadingLowStock(true);
-      const sid = await AsyncStorage.getItem('session_id');
-      if (!sid) return;
+  try {
+    setLoadingLowStock(true);
+    const sid = await AsyncStorage.getItem('session_id');
+    if (!sid) return;
 
-      // Find "F.Y. 2025-26 Final" file
-      const filesRes = await axios.get(`${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=true`);
-      const files = filesRes.data.files || [];
-      const fyFile = files.find((f: any) =>
-        f.file_name.toLowerCase().includes('f.y.') || f.file_name.toLowerCase().includes('fy') || f.file_name.toLowerCase().includes('2025-26 final') || f.file_name.toLowerCase().includes('final')
+    const cat = category || lowStockCategory || 'L';
+
+    // Step 1: Get all files from the folder
+    const filesRes = await axios.get(
+      `${BACKEND_URL}/api/drive/files?session_id=${sid}&folder_only=true`
+    );
+    const files = filesRes.data.files || [];
+
+    // Step 2: Find "F.Y. 2025-26 Final" file — flexible matching
+    const fyFile = files.find((f: any) => {
+      const name = f.file_name.toLowerCase();
+      return (
+        (name.includes('f.y.') || name.includes('fy')) &&
+        name.includes('2025-26') &&
+        name.includes('final')
       );
-      if (!fyFile) return;
+    });
 
-      // Determine which sheet to load based on category
-      const cat = category || lowStockCategory || 'L';
-      const sheetMap: Record<string, string> = {
-        'L': 'L In Demand',
-        'HR': 'HR In Demand',
-        'A': 'A In Demand',
-      };
-      const sheetName = sheetMap[cat];
-
-      const dataRes = await axios.get(
-        `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${fyFile.file_id}&sheet_name=${encodeURIComponent(sheetName)}&cell_range=A1:Z200&_t=${Date.now()}`
-      );
-      const rows = dataRes.data.data || [];
-
-      // A column = item name (from row 3+, index 2), B column = stock qty
-      const items: LowStockItem[] = [];
-      for (let i = 2; i < rows.length; i++) {
-        const row = rows[i];
-        const name = String(row[0] || '').trim();
-        if (!name) continue;
-        const stock = parseFloat(row[1]) || 0;
-        items.push({ item: name, current: stock, minStock: 0 });
-      }
-      setLowStockItems(items);
+    if (!fyFile) {
+      console.warn('F.Y. 2025-26 Final file not found in folder');
+      setLowStockItems([]);
       setLowStockCategory(cat);
-    } catch (err) {
-      console.error('Failed to load low stock data:', err);
-    } finally {
-      setLoadingLowStock(false);
+      return;
     }
-  };
+
+    // Step 3: Map category to sheet name
+    const sheetMap: Record<string, string> = {
+      'L':  'L In Demand',
+      'HR': 'HR In Demand',
+      'A':  'A In Demand',
+    };
+    const sheetName = sheetMap[cat];
+
+    // Step 4: Read the sheet
+    const dataRes = await axios.get(
+      `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${fyFile.file_id}&sheet_name=${encodeURIComponent(sheetName)}&cell_range=A1:B500&_t=${Date.now()}`
+    );
+    const rows: any[][] = dataRes.data.data || [];
+
+    // Step 5: Parse rows — skip header rows, col A = item name, col B = stock qty
+    const items: LowStockItem[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const name = String(row[0] || '').trim();
+      const stockRaw = row[1];
+
+      // Skip empty rows and header rows (non-numeric stock)
+      if (!name) continue;
+      const stock = parseFloat(stockRaw);
+      if (isNaN(stock)) continue;
+
+      items.push({ item: name, current: stock, minStock: 0 });
+    }
+
+    setLowStockItems(items);
+    setLowStockCategory(cat);
+
+  } catch (err) {
+    console.error('Failed to load low stock data:', err);
+    setLowStockItems([]);
+  } finally {
+    setLoadingLowStock(false);
+  }
+};
 
   const handleRefreshSheet = async (sheet: SheetProfile) => {
     setRefreshingId(sheet.id);
