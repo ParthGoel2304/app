@@ -91,12 +91,12 @@ export default function DebtorsScreen() {
           `${BACKEND_URL}/api/excel/read?session_id=${sid}&file_id=${file.file_id}&sheet_name=${encodeURIComponent(summarySheet)}&cell_range=A1:Z500&_t=${Date.now()}`
         );
         const rows = dataRes.data.data || [];
-        // A=name (from row 2), B=city, C=debt total ("-" means 0)
+        // A=name, B=city, E=debt total ("-" means 0)
         const items: DebtorItem[] = [];
         for (let i = 1; i < rows.length; i++) {
           const r = rows[i];
           if (!r[0] || String(r[0]).trim() === '') continue;
-          const rawDebt = String(r[2] || '0').trim();
+          const rawDebt = String(r[4] || '0').trim();
           const debtTotal = rawDebt === '-' || rawDebt === ' - ' || rawDebt === '' ? 0 : parseFloat(rawDebt) || 0;
           items.push({
             name: String(r[0]).trim(),
