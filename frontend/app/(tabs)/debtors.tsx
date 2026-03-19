@@ -17,6 +17,7 @@ interface DebtorItem {
   name: string;
   city: string;
   debtTotal: number;
+  decision: string;
 }
 
 interface BillItem {
@@ -60,6 +61,7 @@ export default function DebtorsScreen() {
 
   // Detail modal
   const [selectedDebtor, setSelectedDebtor] = useState<DebtorItem | null>(null);
+  const [showAskOnly, setShowAskOnly] = useState(false);
 
   useFocusEffect(useCallback(() => { loadAll(); }, []));
 
@@ -92,20 +94,19 @@ export default function DebtorsScreen() {
         );
         const rows = dataRes.data.data || [];
         // A=name, B=city, E=debt total ("-" means 0)
-        const items: DebtorItem[] = [];
-        for (let i = 1; i < rows.length; i++) {
-          const r = rows[i];
-          if (!r[0] || String(r[0]).trim() === '') continue;
-          const rawDebt = String(r[4] || '0').trim();
-          const debtTotal = rawDebt === '-' || rawDebt === ' - ' || rawDebt === '' ? 0 : parseFloat(rawDebt) || 0;
+      const items: DebtorItem[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0] || String(r[0]).trim() === '') continue;
+        const rawDebt = String(r[4] || '0').trim();
+        const debtTotal = rawDebt === '-' || rawDebt === ' - ' || rawDebt === '' ? 0 : parseFloat(rawDebt) || 0;
+        const decision = String(r[5] || '').trim();
           items.push({
             name: String(r[0]).trim(),
             city: String(r[1] || '').trim(),
             debtTotal,
+            decision,
           });
-        }
-        setDebtors(items);
-      }
 
       // Load "Sales" sheet for bills
       const salesSheet = sheets.find(s => s.toLowerCase() === 'sales') || sheets.find(s => s.toLowerCase().includes('sales') && !s.toLowerCase().includes('summary'));
@@ -190,10 +191,12 @@ export default function DebtorsScreen() {
   };
 
   // Filtered data
-  const filteredDebtors = debtors.filter(d =>
-    d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.city.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredDebtors = debtors.filter(d => {
+  const matchesSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
+    d.city.toLowerCase().includes(search.toLowerCase());
+  const matchesAsk = !showAskOnly || d.decision.toLowerCase() === 'ask';
+  return matchesSearch && matchesAsk;
+});
 
   const filteredBills = bills.filter(b => {
     const q = search.toLowerCase();
@@ -302,27 +305,52 @@ export default function DebtorsScreen() {
 
       {/* DEBTORS TAB */}
       {activeTab === 'debtors' && (
-        <FlatList
-          data={filteredDebtors}
-          keyExtractor={(_, i) => `d-${i}`}
-          contentContainerStyle={st.listContent}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={st.card} onPress={() => setSelectedDebtor(item)} data-testid={`debtor-${item.name}`}>
-              <View style={st.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={st.cardName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={st.cardCity}>{item.city || 'N/A'}</Text>
-                </View>
-                <View style={[st.debtBadge, { backgroundColor: item.debtTotal > 0 ? '#3d1a1a' : '#1a3d1a' }]}>
-                  <Text style={[st.debtBadgeText, { color: item.debtTotal > 0 ? '#EA4335' : '#34A853' }]}>
-                    {item.debtTotal > 0 ? `${item.debtTotal.toLocaleString('en-IN')}` : 'Settled'}
-                  </Text>
-                </View>
-              </View>
+        <>
+          <View style={{ flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, gap: 8 }}>
+            <TouchableOpacity
+              style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8,
+                backgroundColor: showAskOnly ? '#FBBC05' : '#0f3460',
+                borderWidth: 1, borderColor: showAskOnly ? '#FBBC05' : '#1e3a5f' }}
+              onPress={() => setShowAskOnly(!showAskOnly)}>
+              <Text style={{ fontSize: 12, color: showAskOnly ? '#000' : '#9aa0a6', fontWeight: '600' }}>
+                Ask Only
+              </Text>
             </TouchableOpacity>
-          )}
-          ListEmptyComponent={<View style={st.center}><Text style={st.errSub}>No debtors found.</Text></View>}
-        />
+          </View>
+          <FlatList
+            data={filteredDebtors}
+            keyExtractor={(_, i) => `d-${i}`}
+            contentContainerStyle={st.listContent}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={st.card} onPress={() => setSelectedDebtor(item)}>
+                <View style={st.cardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.cardName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={st.cardCity}>{item.city || 'N/A'}</Text>
+                    {item.decision ? (
+                      <Text style={{ fontSize: 11, color: item.decision.toLowerCase() === 'ask' ? '#FBBC05' : '#34A853', fontWeight: '600', marginTop: 2 }}>
+                        {item.decision}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <View style={[st.debtBadge, { backgroundColor: item.debtTotal > 0 ? '#3d1a1a' : '#1a3d1a' }]}>
+                      <Text style={[st.debtBadgeText, { color: item.debtTotal > 0 ? '#EA4335' : '#34A853' }]}>
+                        {item.debtTotal > 0 ? item.debtTotal.toLocaleString('en-IN') : 'Settled'}
+                      </Text>
+                    </View>
+                    {item.balance !== 0 && (
+                      <Text style={{ fontSize: 11, color: '#FBBC05', fontWeight: '600' }}>
+                        Bal: {item.balance.toLocaleString('en-IN')}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={<View style={st.center}><Text style={st.errSub}>No debtors found.</Text></View>}
+          />
+        </>
       )}
 
       {/* BILLS TAB */}
