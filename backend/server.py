@@ -440,11 +440,11 @@ async def check_drive_status(session_id: str = Query(...)):
     }
 
 # Office folder ID - loaded from environment variable (optional, for folder-specific queries)
-OFFICE_FOLDER_ID = os.environ.get('OFFICE_FOLDER_ID', '1pWl-lmEYlZFwRiWB1StMe9hOyQnxlXCv')
+OFFICE_FOLDER_ID = '1pWl-lmEYlZFwRiWB1StMe9hOyQnxlXCv'
 
 # 5. LIST EXCEL FILES FROM DRIVE (ALL Excel files, sorted by modifiedTime desc)
 @api_router.get("/drive/files")
-async def list_excel_files(session_id: str = Query(...), folder_only: bool = Query(default=False)):
+async def list_excel_files(session_id: str = Query(...), folder_only: bool = Query(default=True)):
     """List ALL Excel files from entire Drive, sorted newest first"""
     try:
         service = await get_drive_service(session_id)
