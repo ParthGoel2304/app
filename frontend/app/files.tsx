@@ -53,7 +53,7 @@ export default function FilesScreen() {
       );
       
       setFiles(response.data.files);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Load files error:', error);
       Alert.alert('Error', error.response?.data?.detail || 'Failed to load files');
     } finally {

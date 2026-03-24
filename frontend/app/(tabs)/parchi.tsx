@@ -123,7 +123,7 @@ export default function ParchiScreen() {
           setFooterRows(DEFAULT_FOOTER_ROWS);
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.log('Parchi load error:', err);
       setLoadError('Failed to load Parchi data');
       setItems([]);

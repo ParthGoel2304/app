@@ -58,7 +58,7 @@ export default function SheetsScreen() {
       if (response.data.sheet_names.length > 0) {
         setSelectedSheet(response.data.sheet_names[0]);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Load sheets error:', error);
       Alert.alert('Error', error.response?.data?.detail || 'Failed to load sheets');
       router.back();
@@ -96,7 +96,7 @@ export default function SheetsScreen() {
       
       // Navigate to data view
       router.push('/data');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Save config error:', error);
       Alert.alert('Error', error.response?.data?.detail || 'Failed to save configuration');
     }

@@ -74,7 +74,7 @@ export default function RecentScreen() {
           { text: 'OK' }
         ]
       );
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Error', e.response?.data?.detail || 'Failed to load file');
     } finally {
       setLoadingId(null);

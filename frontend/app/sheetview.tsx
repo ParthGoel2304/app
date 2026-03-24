@@ -182,7 +182,7 @@ export default function SheetViewScreen() {
       setLastUpdated(now);
       processData(rows);
       setActiveProfile(prev => prev ? { ...prev, data: rows } : prev);
-    } catch (err: any) {
+    } catch (err) {
       setError('fetch_failed');
       Alert.alert('Error', err.response?.data?.detail || 'Failed to fetch data');
     } finally {
@@ -381,7 +381,7 @@ export default function SheetViewScreen() {
         await Print.printAsync({ html });
       }
       setShowPrintModal(false);
-    } catch (err: any) {
+    } catch (err) {
       Alert.alert('Print Error', err.message || 'Failed to print');
     } finally {
       setIsPrinting(false);

@@ -87,7 +87,7 @@ export default function LoginScreen() {
       // Start polling for connection status
       startPolling(sid!);
       
-    } catch (e: any) {
+    } catch (e) {
       console.error('OAuth error:', e);
       Alert.alert('Error', e.response?.data?.detail || 'Failed to initiate connection');
       setLoading(false);
@@ -150,7 +150,7 @@ export default function LoginScreen() {
         Alert.alert('Connected!', 'Google Drive connected successfully.');
         router.replace('/(tabs)/home' as any);
       }
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Error', e.response?.data?.detail || 'Failed to connect with this code');
     } finally { setSubmitting(false); }
   };

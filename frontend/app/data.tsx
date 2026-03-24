@@ -80,7 +80,7 @@ export default function DataScreen() {
       );
       
       setExcelData(response.data);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Load data error:', error);
       Alert.alert('Error', error.response?.data?.detail || 'Failed to load Excel data');
     } finally {

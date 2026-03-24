@@ -139,7 +139,7 @@ export default function DebtorsScreen() {
       // Load local payments
       const payRes = await axios.get(`${BACKEND_URL}/api/debtors/payments/list?session_id=${sid}`);
       setLocalPayments(payRes.data.payments || []);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || 'Failed to load');
     } finally {
       setLoading(false);
@@ -166,7 +166,7 @@ export default function DebtorsScreen() {
       const payRes = await axios.get(`${BACKEND_URL}/api/debtors/payments/list?session_id=${sid}`);
       setLocalPayments(payRes.data.payments || []);
       Alert.alert('Done', 'Payment recorded');
-    } catch (err: any) {
+    } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed');
     }
   };

@@ -154,7 +154,7 @@ export default function LayoutScreen() {
       if (type === 'jgt') { setJgtRackMap(newMap); setJgtProfile({ ...profile, data: rows }); }
       else { setJgiRackMap(newMap); setJgiProfile({ ...profile, data: rows }); }
       Alert.alert('Refreshed!', `${type.toUpperCase()} data updated`);
-    } catch (err: any) {
+    } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed to refresh');
     } finally { setLoading(false); }
   };
@@ -360,7 +360,7 @@ export default function LayoutScreen() {
       setEditMode(false);
       setSaveNameModal(false);
       Alert.alert('Saved!', `Layout "${saveName.trim()}" saved`);
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Error', e.response?.data?.detail || 'Failed to save');
     } finally { setLoading(false); }
   };

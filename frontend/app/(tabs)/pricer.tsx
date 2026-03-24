@@ -112,7 +112,7 @@ export default function PricerTab() {
         fileInfo: { name: jgtFile.file_name, modified: new Date().toISOString() }
       }));
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to fetch pricer data:', err);
       if (!silent) {
         setError('fetch_failed');

@@ -330,7 +330,7 @@ export default function FilterScreen() {
         const converted = hindiToSize(transcribed);
         setSizeInput(converted);
       }
-    } catch (err: any) {
+    } catch (err) {
       const msg = err.response?.data?.detail || err.message || 'Transcription failed';
       Alert.alert('Transcription Error', msg);
       // Fallback: let user type manually

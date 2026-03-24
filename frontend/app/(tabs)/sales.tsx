@@ -107,7 +107,7 @@ export default function SalesTab() {
       await AsyncStorage.setItem('sales_data_timestamp', now);
       setLastUpdated(now);
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to fetch sales data:', err);
       if (!silent) {
         setError('fetch_failed');
