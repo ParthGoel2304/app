@@ -101,12 +101,15 @@ export default function DebtorsScreen() {
         const rawDebt = String(r[4] || '0').trim();
         const debtTotal = rawDebt === '-' || rawDebt === ' - ' || rawDebt === '' ? 0 : parseFloat(rawDebt) || 0;
         const decision = String(r[5] || '').trim();
-          items.push({
+           items.push({
             name: String(r[0]).trim(),
             city: String(r[1] || '').trim(),
             debtTotal,
             decision,
           });
+        }
+        setDebtors(items);
+      }
 
       // Load "Sales" sheet for bills
       const salesSheet = sheets.find(s => s.toLowerCase() === 'sales') || sheets.find(s => s.toLowerCase().includes('sales') && !s.toLowerCase().includes('summary'));
